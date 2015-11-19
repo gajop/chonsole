@@ -1,7 +1,7 @@
 function widget:GetInfo()
   return {
-    name      = "Console",
-    desc      = "",
+    name      = "Chonsole",
+    desc      = "Chili Console",
     author    = "gajop",
     date      = "in the future",
     license   = "GPL-v2",
@@ -34,6 +34,20 @@ local fontFile = "LuaUI/fonts/dejavu-sans-mono/DejaVuSansMono.ttf"
 -- Lobby chat
 local consoles = {} -- ID -> name mapping
 
+local function explode(div,str)
+	if (div=='') then return 
+		false 
+	end
+	local pos,arr = 0,{}
+	-- for each divider found
+	for st,sp in function() return string.find(str,div,pos,true) end do
+		table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
+		pos = sp + 1 -- Jump past current divider
+	end
+	table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
+	return arr
+end
+
 local cmdConfig = {
 	{ 
 		command = "gamerules",
@@ -54,9 +68,8 @@ local cmdConfig = {
 			return suggestions
 		end,
 		exec = function(command, cmdParts)
-			local cmd = explode(" ", str)
-			if #cmd >= 3 then
-				Spring.SendLuaRulesMsg('set_gamerule|' .. cmd[2] .. "|" .. cmd[3])
+			if #cmdParts >= 3 then
+				Spring.SendLuaRulesMsg('set_gamerule|' .. cmdParts[2] .. "|" .. cmdParts[3])
 			end
 		end
 	},
@@ -84,9 +97,8 @@ local cmdConfig = {
 			return suggestions
 		end,
 		exec = function(command, cmdParts)
-			local cmd = explode(" ", str)
-			if #cmd >= 4 then
-				Spring.SendLuaRulesMsg('set_teamrule|' .. cmd[2] .. "|" .. cmd[3] .. "|" .. cmd[4])
+			if #cmdParts >= 4 then
+				Spring.SendLuaRulesMsg('set_teamrule|' .. cmdParts[2] .. "|" .. cmdParts[3] .. "|" .. cmdParts[4])
 			end
 		end
 	},
@@ -128,9 +140,8 @@ local cmdConfig = {
 			return suggestions
 		end,
 		exec = function(command, cmdParts)
-			local cmd = explode(" ", str)
-			if #cmd >= 3 then
-				Spring.SendLuaRulesMsg('set_unitrule|' .. cmd[2] .. "|" .. cmd[3] .. "|" .. cmd[4])
+			if #cmdParts >= 3 then
+				Spring.SendLuaRulesMsg('set_unitrule|' .. cmdParts[2] .. "|" .. cmdParts[3] .. "|" .. cmdParts[4])
 			end
 		end
 	},
@@ -389,20 +400,6 @@ local currentContext
 -- autocheat
 local autoCheat = true
 local autoCheatBuffer = {}
-
-local function explode(div,str)
-	if (div=='') then return 
-		false 
-	end
-	local pos,arr = 0,{}
-	-- for each divider found
-	for st,sp in function() return string.find(str,div,pos,true) end do
-		table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
-		pos = sp + 1 -- Jump past current divider
-	end
-	table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
-	return arr
-end
 
 function string.trimLeft(str)
   return str:gsub("^%s*(.-)", "%1")

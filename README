@@ -15,7 +15,8 @@ Dependencies (not included):
 - i18n (optional, support for i18n)
 
 Install:
-TODO
+Obtain the repository either by adding it as a git submodule or by copying the entire structure in to your Spring game folder. Put it anywhere (although /libs is suggested and used by default).
+Copy the file ui_chonsole_load.lua to the luaui/widgets and luarules/gadgets folders and modify the CHONSOLE_FOLDER path.
 
 Customization:
 TODO

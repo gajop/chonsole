@@ -6,8 +6,8 @@ end
 
 function gadget:GetInfo()
 	return {
-		name 	= "Console handling",
-		desc	= "Handles the console",
+		name 	= "Chonsole gadget",
+		desc	= "Gadget support for Chonsole",
 		author	= "gajop",
 		date	= "In the future 2015",
 		license	= "GNU GPL, v2 or later",
