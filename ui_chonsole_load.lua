@@ -3,7 +3,7 @@
 -- Copy this file to both the luaui/widgets and the luarules/gadgets folders
 
 -- Set this line to the Chonsole installation folder
-local CHONSOLE_FOLDER = "libs/chonsole"
+CHONSOLE_FOLDER = "libs/chonsole"
 
 -- Do NOT modify the following lines
 if Script.GetName() == "LuaUI" then

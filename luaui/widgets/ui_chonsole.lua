@@ -10,6 +10,8 @@ function widget:GetInfo()
   }
 end
 
+VFS.Include(CHONSOLE_FOLDER .. "/luaui/config/globals.lua", nil, VFS.DEF_MODE)
+
 -- constants
 local grey = { 0.7, 0.7, 0.7, 1 }
 local white = { 1, 1, 1, 1 }
@@ -19,20 +21,9 @@ local red =  { 1, 0, 0, 1 }
 local green = { 0, 1, 0, 1 }
 local yellow = { 1, 1, 0, 1 }
 
--- Config
-local consoleX, consoleY = 0.26, 0.25
-local consoleWidth = 0.5
-local suggestionsHeight = 0.4
-local suggesitonFontSize = 16
-local suggesitonPadding = 4
-local pageUpFactor = 10
-local pageDownFactor = 10
-local selectedSuggestionColor = { 0, 1, 1, 0.4 }
-local subsuggestionColor = { 0, 0, 0, 0 }
-local fontFile = "LuaUI/fonts/dejavu-sans-mono/DejaVuSansMono.ttf"
-
--- Lobby chat
-local consoles = {} -- ID -> name mapping
+-- context 
+local defaultContext = { display = "Say:", name = "say", persist = true }
+local currentContext
 
 local function explode(div,str)
 	if (div=='') then return 
@@ -47,328 +38,6 @@ local function explode(div,str)
 	table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
 	return arr
 end
-
-local cmdConfig = {
-	{ 
-		command = "gamerules",
-		description = "Sets values of specific gamerules variables",
-		cheat = true,
-		suggestions = function(cmd, cmdParts)
-			local suggestions = {}
-			local param = cmdParts[2]
-			for index, rule in pairs(Spring.GetGameRulesParams()) do
-				if type(rule) == "table" then
-					for name, value in pairs(rule) do
-						if param == nil or param == "" or name:starts(param) then
-							table.insert(suggestions, { command = "/gamerules " .. name, text = name, description = value })
-						end
-					end
-				end
-			end
-			return suggestions
-		end,
-		exec = function(command, cmdParts)
-			if #cmdParts >= 3 then
-				Spring.SendLuaRulesMsg('set_gamerule|' .. cmdParts[2] .. "|" .. cmdParts[3])
-			end
-		end
-	},
-	{ 
-		command = "teamrules",
-		description = "Sets values of specific teamrules variables",
-		cheat = true,
-		suggestions = function(cmd, cmdParts)
-			local suggestions = {}
-			local teamID = tonumber(cmdParts[2] or "")
-			if teamID == nil then
-				return suggestions
-			end
-
-			local param = cmdParts[3]
-			for index, rule in pairs(Spring.GetTeamRulesParams(teamID)) do
-				if type(rule) == "table" then
-					for name, value in pairs(rule) do
-						if param == nil or param == "" or name:starts(param) then
-							table.insert(suggestions, { command = "/teamrules " .. name, text = name, description = value })
-						end
-					end
-				end
-			end
-			return suggestions
-		end,
-		exec = function(command, cmdParts)
-			if #cmdParts >= 4 then
-				Spring.SendLuaRulesMsg('set_teamrule|' .. cmdParts[2] .. "|" .. cmdParts[3] .. "|" .. cmdParts[4])
-			end
-		end
-	},
-	{ 
-		command = "unitrules",
-		description = "Sets unitrules for the selected units",
-		cheat = true,
-		suggestions = function(cmd, cmdParts)
-			local suggestions = {}
-			local units = Spring.GetSelectedUnits()
-			if #units == 0 then
-				return suggestions
-			end
-			
-			local unitrules = {}
-			local different = {} -- mapping of unit rules that differ
-			for i, unitID in pairs(units) do
-				local rules = Spring.GetUnitRulesParams(unitID)
-				for rule, value in pairs(rules) do
-					if i == 0 then
-						unitrules[rule] = value
-					elseif unitrules[rule] ~= value then
-						unitrules[rule] = value
-						different[rule] = true
-					end
-				end
-			end
-			
-			local param = cmdParts[3]
-			for index, rule in pairs(Spring.GetUnitRulesParams(unitID)) do
-				if type(rule) == "table" then
-					for name, value in pairs(rule) do
-						if param == nil or param == "" or name:starts(param) then
-							table.insert(suggestions, { command = "/unitrules " .. name, text = name, description = value })
-						end
-					end
-				end
-			end
-			return suggestions
-		end,
-		exec = function(command, cmdParts)
-			if #cmdParts >= 3 then
-				Spring.SendLuaRulesMsg('set_unitrule|' .. cmdParts[2] .. "|" .. cmdParts[3] .. "|" .. cmdParts[4])
-			end
-		end
-	},
-	{ 
-		command = "execw",
-		description = "Execute Lua command in a widget",
-		cheat = false,
-		exec = function(command, cmdParts)
-			local commandPart = cmdParts[1]
-			local x = command:lower():find(commandPart)
-			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			ExecuteCommand(luaCommandStr)
-		end
--- 		suggestions = function(cmd, cmdParts)
--- 			local suggestions = {}
--- 			local param = cmdParts[2]
--- 			for index, rule in pairs(Spring.GetGameRulesParams()) do
--- 				if type(rule) == "table" then
--- 					for name, value in pairs(rule) do
--- 						if param == nil or param == "" or name:starts(param) then
--- 							table.insert(suggestions, { command = "/gamerules " .. name, text = name, description = value })
--- 						end
--- 					end
--- 				end
--- 			end
--- 			return suggestions
--- 		end,
-	},
-	{ 
-		command = "execs",
-		description = "Execute Lua command in a synced gadget",
-		cheat = true,
-		exec = function(command, cmdParts)
-			local commandPart = cmdParts[1]
-			local x = command:lower():find(commandPart)
-			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			Spring.Echo("SYNCED!")
-			ExecuteCommand(luaCommandStr)
-		end,
-	},
-	{ 
-		command = "execu",
-		description = "Execute Lua command in an unsynced gadget",
-		cheat = false,
-		exec = function(command, cmdParts)
-			local commandPart = cmdParts[1]
-			local x = command:lower():find(commandPart)
-			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			Spring.Echo("UNSYNCED!")
-			ExecuteCommand(luaCommandStr)
-		end,
-	},
-	{ 
-		command = "execgl",
-		description = "Execute Lua command in a widget OpenGL callin",
-		cheat = false,
-		exec = function(command, cmdParts)
-			local commandPart = cmdParts[1]
-			local x = command:lower():find(commandPart)
-			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			delayGL = function() ExecuteCommand(luaCommandStr) end
-		end,
-	},
-	{
-		command = "autocheat",
-		description = "Provides automatic /cheat for commands that need it.",
-		exec = function(command, cmdParts)
-			autoCheat = not autoCheat
-			Spring.Echo("AutoCheat: " .. tostring(autoCheat))
-		end,
-	},
-	{
-		command = "luaui",
-		suggestions = function(cmd, cmdParts)
-			local suggestions = {}
-			local param = cmdParts[2]
-			for _, name in pairs({"reload", "enable"}) do
-				if param == nil or param == "" or name:starts(param) then
-					table.insert(suggestions, { command = "/luaui " .. name, text = name, description = value })
-				end
-			end
-			return suggestions
-		end,
-	},
-	{
-		command = "luarules",
-		suggestions = function(cmd, cmdParts)
-			local suggestions = {}
-			local param = cmdParts[2]
-			for _, name in pairs({"reload", "enable"}) do
-				if param == nil or param == "" or name:starts(param) then
-					table.insert(suggestions, { command = "/luarules " .. name, text = name, description = value })
-				end
-			end
-			return suggestions
-		end,
-	},
-	{
-		command = "give",
-		suggestions = function(cmd, cmdParts)
-			local suggestions = {}
-			local param = cmdParts[2]
-			local count
-			local teamPart = cmdParts[3]
-			if tonumber(param) ~= nil then
-				param = cmdParts[3]
-				count = tonumber(cmdParts[2])
-				if math.floor(count) ~= count or count <= 0 then
-					return suggestions
-				end
-				teamPart = cmdParts[4]
-			end
-			for id, uDef in pairs(UnitDefs) do
-				if param == nil or param == "" or uDef.name:starts(param) then
-					local text = uDef.name
-					local desc = "Give " .. uDef.name
-					if count then
-						text = count .. " " .. text
-						desc = "Give " .. count .. " " .. uDef.name
-					end
-					if teamPart then
-						for _, teamID in pairs(Spring.GetTeamList()) do
-							if teamPart == "" or tostring(teamID):starts(teamPart) then
-								local teamText = text .. " " .. teamID
-								local teamDesc = desc .. " to team " .. teamID
-								if uDef.name ~= uDef.tooltip then
-									teamDesc = teamDesc .. uDef.tooltip
-								end
-								table.insert(suggestions, { command = "/give " .. teamText, text = teamText, description = teamDesc })
-							end
-						end
-					else
-						if uDef.name ~= uDef.tooltip then
-							desc = desc .. uDef.tooltip
-						end
-						table.insert(suggestions, { command = "/give " .. text, text = text, description = desc })
-					end
-				end
-			end
-			return suggestions
-		end,
-	},
-	{
-		command = "w",
-		suggestions = function(cmd, cmdParts)
-			local suggestions = {}
-			local param = cmdParts[2]
-			for _, playerID in pairs(Spring.GetPlayerList()) do
-				local playerName = Spring.GetPlayerInfo(playerID)
-				table.insert(suggestions, { command = "/w " .. playerName, text = playerName})
-			end
-			return suggestions
-		end,
-	},
-	{
-		command = "login",
-		exec = function(command, cmdParts)
-			WG.LibLobby.lobby:AddListener("OnTASServer", function()
-				WG.LibLobby.lobby:Login(cmdParts[2], VFS.CalcMd5(cmdParts[3]), 3)
-				WG.LibLobby.lobby:AddListener("OnJoin",
-					function(listener, chanName)
-						local id = 1
-						while true do
-							if not consoles[id] then
-								consoles[id] = chanName
-								break
-							end
-							id = id + 1
-						end
-					end
-				)
-				WG.LibLobby.lobby:AddListener("OnSaid", 
-					function(listener, chanName, userName, message)
-						for id, name in pairs(consoles) do
-							if name == chanName then
-								-- print channel message
-								local msg = "\255\204\153\1[" .. tostring(id) .. ". " .. chanName .. "] <" .. userName .. "> " .. message .. "\b"
-								Spring.Echo(msg)
-								break
-							end
-						end
-					end
-				)
-			end)
-			WG.LibLobby.lobby:Connect("springrts.com", 8200)
-		end,
-	},
-	{
-		command = "logout",
-		exec = function(command, cmdParts)
-			Spring.Echo("TODO: LOGOUT")
--- 			WG.LibLobby.lobby:Connect("springrts.com", 8200)
--- 			WG.LibLobby.lobby:AddListener("OnTASServer", function()
--- 				WG.LibLobby.lobby:Login(cmdParts[2], VFS.CalcMd5(cmdParts[3]), 3)
--- 			end)
-		end,
-	},
-	{
-		command = "join",
-		exec = function(command, cmdParts)
-			WG.LibLobby.lobby:Join(cmdParts[2], cmdParts[3])
-		end,
-	},
-	{
-		command = "leave",
-		exec = function(command, cmdParts)
-			WG.LibLobby.lobby:Leave(cmdParts[2])
-		end,
-	},
-	{
-		command = "set",
-		suggestions = function(cmd, cmdParts)
-			local suggestions = {}
-			local param = cmdParts[2]
-			for _, config in pairs(Spring.GetConfigParams()) do
-				if param == nil or param == "" or config.name:starts(param) then
-					local desc = config.description
-					if desc then
-						desc = desc:gsub("\n", " ")
-					end
-					table.insert(suggestions, { command = "/set " .. config.name, text = config.name, description = desc})
-				end
-			end
-			return suggestions
-		end, 
-	},
-}
 
 -- Chili
 local Chili, screen0
@@ -393,13 +62,22 @@ local filteredSuggestions = {}
 local dynamicSuggestions = {}
 local preText -- used to determine if text changed
 
--- context 
-local defaultContext = { display = "Say:", name = "say", persist = true }
-local currentContext
-
 -- autocheat
 local autoCheat = true
 local autoCheatBuffer = {}
+
+-- extensions
+local cmdConfig = {}
+local contextParser = {}
+
+-- extension API
+function GetCurrentContext()
+	return currentContext
+end
+function ResetCurrentContext()
+	currentContext = defaultContext
+	ShowContext()
+end
 
 function string.trimLeft(str)
   return str:gsub("^%s*(.-)", "%1")
@@ -415,18 +93,40 @@ function widget:Initialize()
 	end
 	Chili = WG.Chili
 	screen0 = Chili.Screen0
+	
+	for _, f in pairs(VFS.DirList(CHONSOLE_FOLDER .. "/exts", "*", VFS.DEF_MODE)) do
+		local success, err = pcall(function() VFS.Include(f, nil, VFS.DEF_MODE) end)
+		if not success then
+			Spring.Log("Chonsole", LOG.ERROR, "Error loading extension file: " .. f)
+			Spring.Log("Chonsole", LOG.ERROR, err)
+		else
+			if commands ~= nil then
+				for _, cmd in pairs(commands) do
+					table.insert(cmdConfig, cmd)
+				end
+	-- 			table.merge(cmdConfig, t.commands)
+			end
+			if context ~= nil then
+				for _, parser in pairs(context) do
+					Spring.Echo("AAAAAAAAAAAAAAAAAAAAAADDDDDDDDDDDDDDDDDEEEEEEEEEEEDD")
+					table.insert(contextParser, parser)
+				end
+			end
+		end
+	end
+	
 	Spring.SendCommands("unbindkeyset enter chat")
 	
 	local vsx,vsy = Spring.GetViewGeometry()
 	ebConsole = Chili.EditBox:New {
-		width = consoleWidth * vsx,
+		width = config.console.w * vsx,
 		height = 40,
 		parent = screen0,
 		cursorColor = {0.9,0.9,0.9,0.7},
 		font = {
 			size = 22,
 -- 			shadow = false,
-			font = fontFile,
+			font = config.console.fontFile,
 		},
 		KeyPress = function(...)
 			if not ParseKey(...) then
@@ -469,7 +169,7 @@ function widget:Initialize()
 		caption = "",
 		parent = screen0,
 		font = {
-			font = fontFile,
+			font = config.console.fontFile,
 			size = 20,
 			shadow = true,
 		},
@@ -490,10 +190,10 @@ function widget:Initialize()
 end
 
 function ResizeUI(vsx, vsy)
-	ebConsole:SetPos(consoleX * vsx, consoleY * vsy, consoleWidth * vsx)
-	scrollSuggestions:SetPos(consoleX * vsx, consoleY * vsy + ebConsole.height, consoleWidth * vsx, suggestionsHeight * vsy)
-	spSuggestions:SetPos(nil, nil, consoleWidth * vsx, suggestionsHeight * vsy)
-	lblContext:SetPos(consoleX * vsx - lblContext.width - 6, consoleY * vsy + 7)
+	ebConsole:SetPos(config.console.x * vsx, config.console.y * vsy, config.console.w * vsx)
+	scrollSuggestions:SetPos(config.console.x * vsx, config.console.y * vsy + ebConsole.height, config.console.w * vsx, config.suggestions.h * vsy)
+	spSuggestions:SetPos(nil, nil, config.console.w * vsx, config.suggestions.h * vsy)
+	lblContext:SetPos(config.console.x * vsx - lblContext.width - 6, config.console.y * vsy + 7)
 end
 
 function widget:ViewResize(vsx, vsy)
@@ -626,13 +326,13 @@ function ParseKey(ebConsole, key, mods, ...)
 			UpdateSuggestions()
 		end
 	elseif key == Spring.GetKeyCode("pageup") then
-		for i = 1, pageUpFactor do
+		for i = 1, config.suggestions.pageUpFactor do
 			if currentSuggestion > 0 then
 				SuggestionsUp()
 			end
 		end
 	elseif key == Spring.GetKeyCode("pagedown") then
-		for i = 1, pageDownFactor do
+		for i = 1, config.suggestions.pageDownFactor do
 			if #filteredSuggestions > currentSuggestion then
 				SuggestionsDown()
 			end
@@ -666,15 +366,20 @@ function PostParseKey(...)
 		currentContext = { display = "Spectators:", name = "spectators", persist = true }
 -- 	elseif txt:trim():starts("/") and #txt:trim() > 1 then
 -- 		currentContext = { display = "Command:", name = "command", persist = false }
-	elseif tonumber(txt:trim():sub(2)) ~= nil and txt:sub(#txt, #txt) == " " then
-		local id = tonumber(txt:trim():sub(2))
-		if consoles[id] == nil then
-			return
+	else
+		local res, context = false, nil
+		for _, parser in pairs(contextParser) do
+			res, context = parser.parse(txt)
+			if res then
+				ebConsole:SetText("")
+				currentContext = context
+				break
+			end
 		end
-		ebConsole:SetText("")
-		currentContext = { display = "\255\204\153\1[" .. tostring(id) .. ". " .. consoles[id] .. "]\b", name = "channel", id = id, persist = true }
-	elseif not currentContext.persist then
-		currentContext = { display = "Say:", name = "say", persist = true }
+		
+		if not res and not currentContext.persist then
+			currentContext = { display = "Say:", name = "say", persist = true }
+		end
 	end
 	if preText ~= txt then -- only update suggestions if text changed
 		currentSuggestion = 0
@@ -714,7 +419,7 @@ end
 function CreateSuggestion(suggestion)
 	local ctrlSuggestion = Chili.Button:New {
 		x = 0,
-		minHeight = suggesitonFontSize + suggesitonPadding,
+		minHeight = config.suggestions.fontSize + config.suggestions.padding,
 		autosize = true,
 		width = "100%",
 		resizable = false,
@@ -730,10 +435,10 @@ function CreateSuggestion(suggestion)
 		autosize = true,
 		padding 	  = {0, 0, 0, 0},
 		font = {
-			size = suggesitonFontSize,
+			size = config.suggestions.fontSize,
 -- 			shadow = false,
 			color = white,
-			font = fontFile,
+			font = config.console.fontFile,
 		},
 		parent = ctrlSuggestion,
 	}
@@ -744,10 +449,10 @@ function CreateSuggestion(suggestion)
 		caption = suggestion.description or "",
 		padding 	  = {0, 0, 0, 0},
 		font = {
-			size = suggesitonFontSize,
+			size = config.suggestions.fontSize,
 -- 			shadow = false,
 			color = grey,
-			font = fontFile,
+			font = config.console.fontFile,
 		},
 		parent = ctrlSuggestion,
 	}
@@ -760,10 +465,10 @@ function CreateSuggestion(suggestion)
 			align = "right",
 			padding 	  = {0, 0, 0, 0},
 			font = {
-				size = suggesitonFontSize,
+				size = config.suggestions.fontSize,
 -- 				shadow = false,
 				color = color,
-				font = fontFile,
+				font = config.console.fontFile,
 			},
 			parent = ctrlSuggestion,
 		}
@@ -802,8 +507,8 @@ function GenerateSuggestions()
 	end
 	local fakeCtrl = Chili.Button:New {
 		x = 0,
-		y = (#suggestions - 1) * (suggesitonFontSize + suggesitonPadding),
-		height = (suggesitonFontSize + suggesitonPadding),
+		y = (#suggestions - 1) * (config.suggestions.fontSize + config.suggestions.padding),
+		height = (config.suggestions.fontSize + config.suggestions.padding),
 		autosize = true,
 		--width = "100%",
 		resizable = false,
@@ -894,18 +599,18 @@ end
 
 function UpdateSuggestionDisplay(suggestion, ctrlSuggestion, row)
 	if suggestion.visible then
-		ctrlSuggestion.y = (row - 1) * (suggesitonFontSize + suggesitonPadding)
+		ctrlSuggestion.y = (row - 1) * (config.suggestions.fontSize + config.suggestions.padding)
 		
 		if not ctrlSuggestion.visible then
 			ctrlSuggestion:Show()
 		end
 		
 		if currentSubSuggestion == 0 and suggestion.id ~= nil and suggestion.id == filteredSuggestions[currentSuggestion] then
-			ctrlSuggestion.backgroundColor = selectedSuggestionColor
+			ctrlSuggestion.backgroundColor = config.suggestions.suggestionColor
 		elseif suggestion.dynId ~= nil and suggestion.dynId == currentSubSuggestion then
-			ctrlSuggestion.backgroundColor = selectedSuggestionColor
+			ctrlSuggestion.backgroundColor = config.suggestions.suggestionColor
 		elseif suggestion.id == nil then
- 			ctrlSuggestion.backgroundColor = subsuggestionColor
+ 			ctrlSuggestion.backgroundColor = config.suggestions.subsuggestionColor
 		else
 			ctrlSuggestion.backgroundColor = { 0, 0, 0, 0 }
 		end
@@ -945,7 +650,7 @@ function UpdateSuggestions()
 	end
 	
 	-- FIXME: magic numbers and fake controls ^_^
-	spSuggestions.fakeCtrl.y = (count-1+1) * (suggesitonFontSize + suggesitonPadding)
+	spSuggestions.fakeCtrl.y = (count-1+1) * (config.suggestions.fontSize + config.suggestions.padding)
 	
 	if currentSuggestion ~= 0 and scrollSuggestions.visible then
 		local suggestion = suggestions[filteredSuggestions[currentSuggestion]]
@@ -1051,14 +756,24 @@ function ProcessText(str)
 			command = "say a:"
 		elseif currentContext.name == "spectators" then
 			command = "say s:"
-		elseif currentContext.name == "channel" then
-			WG.LibLobby.lobby:Say(consoles[currentContext.id], str)
-			return
 		else
-			Spring.Echo("Unexpected context " .. currentContext.name)
-			command = "say "
+			local found = false
+			for _, parser in pairs(contextParser) do
+				if currentContext.name == parser.name then
+					parser.exec(str, currentContext)
+					found = true
+					break
+				end
+			end
+			
+			if not found then
+				Spring.Echo("Unexpected context " .. currentContext.name)
+				command = "say "
+			end
 		end
-		Spring.SendCommands(command .. str)
+		if command then
+			Spring.SendCommands(command .. str)
+		end
 		--Spring.SendMessageToTeam(Spring.GetMyTeamID(), str)
 	end
 end
