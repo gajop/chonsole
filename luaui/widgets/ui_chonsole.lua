@@ -423,13 +423,13 @@ end
 
 function PostParseKey(...)
 	local txt = ebConsole.text
-	if txt == "/a " or txt == "a:" or txt == "A:" then
+	if txt:lower() == "/a " or txt:lower() == "a:" then
 		ebConsole:SetText("")
 		currentContext = { display = i18n("allies_context", {default="Allies:"}), name = "allies", persist = true }
-	elseif txt == "/s " then
+	elseif txt:lower() == "/s " or txt:lower() == "/say " then
 		ebConsole:SetText("")
-		currentContext = { display = i18n("say_context", {default="Say:"}), persist = true }
-	elseif txt == "/spec " or txt == "s:" or txt == "S:" then
+		currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+	elseif txt:lower() == "/spec " or txt:lower() == "s:" then
 		ebConsole:SetText("")
 		currentContext = { display = i18n("spectators_context", {default="Spectators:"}), name = "spectators", persist = true }
 -- 	elseif txt:trim():starts("/") and #txt:trim() > 1 then
@@ -437,7 +437,11 @@ function PostParseKey(...)
 	else
 		local res, context = false, nil
 		for _, parser in pairs(contextParser) do
-			res, context = parser.parse(txt)
+			local success, err = pcall(function() res, context = parser.parse(txt)end)
+			if not success then
+				Spring.Log("Chonsole", LOG.ERROR, "Error processing custom context: " .. tostring(cmd.command))
+				Spring.Log("Chonsole", LOG.ERROR, err)
+			end
 			if res then
 				ebConsole:SetText("")
 				currentContext = context
@@ -640,7 +644,15 @@ function FilterSuggestions(txt)
 		if count == 1 then
 			local suggestion = suggestions[filteredSuggestions[1]]
 			if suggestion.suggestions ~= nil then
-				local suggestions = suggestion.suggestions(txt, cmdParts)
+				local suggestions
+				local success, err = pcall(function() 
+					suggestions = suggestion.suggestions(txt, cmdParts)
+				end)
+				if not success then
+					Spring.Log("Chonsole", LOG.ERROR, "Error obtaining suggestions for command: " .. tostring(suggestion.command))
+					Spring.Log("Chonsole", LOG.ERROR, err)
+					return
+				end
 				for i, suggestion in pairs(suggestions) do
 					if suggestion.visible == nil then
 						suggestion.visible = true
@@ -791,7 +803,11 @@ function ProcessText(str)
 		else
 			for _, cmd in pairs(cmdConfig) do
 				if cmd.command == cmdParts[1]:lower() and cmd.exec ~= nil then
-					cmd.exec(command, cmdParts)
+					local success, err = pcall(function() cmd.exec(command, cmdParts) end)
+					if not success then
+						Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command: " .. tostring(cmd.command))
+						Spring.Log("Chonsole", LOG.ERROR, err)
+					end
 					return
 				end
 			end
@@ -828,7 +844,11 @@ function ProcessText(str)
 			local found = false
 			for _, parser in pairs(contextParser) do
 				if currentContext.name == parser.name then
-					parser.exec(str, currentContext)
+					local success, err = pcall(function() parser.exec(str, currentContext) end)
+					if not success then
+						Spring.Log("Chonsole", LOG.ERROR, "Error executing custom context: " .. tostring(cmd.command))
+						Spring.Log("Chonsole", LOG.ERROR, err)
+					end
 					found = true
 					break
 				end

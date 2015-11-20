@@ -39,7 +39,7 @@ function HandleLuaMessage(msg)
 	elseif msg_table[1] == "set_teamrule" then
 		Spring.SetTeamRulesParam(msg_table[2], msg_table[3], msg_table[4])
 	elseif msg_table[1] == "set_unitrule" then
-		Spring.SetUnitRulesParam(msg_table[2], msg_table[3])
+		Spring.SetUnitRulesParam(msg_table[2], msg_table[3], msg_table[4])
 	end
 end
 

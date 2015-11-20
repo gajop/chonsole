@@ -67,31 +67,41 @@ commands = {
 			local different = {} -- mapping of unit rules that differ
 			for i, unitID in pairs(units) do
 				local rules = Spring.GetUnitRulesParams(unitID)
-				for rule, value in pairs(rules) do
-					if i == 0 then
-						unitrules[rule] = value
-					elseif unitrules[rule] ~= value then
-						unitrules[rule] = value
-						different[rule] = true
+				for index, rule in pairs(rules) do
+					if type(rule) == "table" then
+						for name, value in pairs(rule) do
+							if i == 1 then
+								unitrules[name] = value
+							elseif unitrules[name] ~= value then
+								unitrules[name] = value
+								different[name] = true
+							end
+						end
 					end
 				end
 			end
 			
-			local param = cmdParts[3]
-			for index, rule in pairs(Spring.GetUnitRulesParams(unitID)) do
-				if type(rule) == "table" then
-					for name, value in pairs(rule) do
-						if param == nil or param == "" or name:starts(param) then
-							table.insert(suggestions, { command = "/unitrules " .. name, text = name, description = value })
-						end
+			local param = cmdParts[2]
+			for name, value in pairs(unitrules) do
+				if param == nil or param == "" or name:starts(param) then
+					local v = value
+					if different[name] then
+						v = "?"
 					end
+					table.insert(suggestions, { command = "/unitrules " .. name, text = name, description = v})
 				end
 			end
 			return suggestions
 		end,
 		exec = function(command, cmdParts)
+			local units = Spring.GetSelectedUnits()
+			if #units == 0 then
+				return
+			end
 			if #cmdParts >= 3 then
-				Spring.SendLuaRulesMsg('set_unitrule|' .. cmdParts[2] .. "|" .. cmdParts[3] .. "|" .. cmdParts[4])
+				for _, unitID in pairs(units) do
+					Spring.SendLuaRulesMsg('set_unitrule|' .. unitID .. "|" .. cmdParts[2] .. "|" .. cmdParts[3])
+				end
 			end
 		end
 	},
