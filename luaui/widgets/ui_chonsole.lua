@@ -22,7 +22,6 @@ local green = { 0, 1, 0, 1 }
 local yellow = { 1, 1, 0, 1 }
 
 -- context 
-local defaultContext = { display = "Say:", name = "say", persist = true }
 local currentContext
 
 local function explode(div,str)
@@ -75,7 +74,7 @@ function GetCurrentContext()
 	return currentContext
 end
 function ResetCurrentContext()
-	currentContext = defaultContext
+	currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
 	ShowContext()
 end
 -- extension API end
@@ -88,14 +87,83 @@ function string.trim(str)
   return str:gsub("^%s*(.-)%s*$", "%1")
 end
 
+local function ExtractDir(filepath)
+  filepath = filepath:gsub("\\", "/")
+  local lastChar = filepath:sub(-1)
+  if (lastChar == "/") then
+    filepath = filepath:sub(1,-2)
+  end
+  local pos,b,e,match,init,n = 1,1,1,1,0,0
+  repeat
+    pos,init,n = b,init+1,n+1
+    b,init,match = filepath:find("/",init,true)
+  until (not b)
+  if (n==1) then
+    return filepath
+  else
+    return filepath:sub(1,pos)
+  end
+end
+
+local function ExtractFileName(filepath)
+  filepath = filepath:gsub("\\", "/")
+  local lastChar = filepath:sub(-1)
+  if (lastChar == "/") then
+    filepath = filepath:sub(1,-2)
+  end
+  local pos,b,e,match,init,n = 1,1,1,1,0,0
+  repeat
+    pos,init,n = b,init+1,n+1
+    b,init,match = filepath:find("/",init,true)
+  until (not b)
+  if (n==1) then
+    return filepath
+  else
+    return filepath:sub(pos+1)
+  end
+end
+
 function widget:Initialize()
 	if not WG.Chili then
 		widgetHandler:RemoveWidget(widget)
 	end
 	Chili = WG.Chili
 	screen0 = Chili.Screen0
+	i18n = WG.i18n
+	if not i18n then
+		-- add optional support for i18n
+		i18n = function(key, data)
+			data = data or {}
+			return data.default or key
+		end
+	end
 	
+	-- Load global translations
+	if WG.i18n then
+		VFS.Include(CHONSOLE_FOLDER .. "/i18n.lua", nil, VFS.DEF_MODE)
+		if translations ~= nil then
+			i18n.load(translations)
+		end
+	end
+	-- Load extensions
 	for _, f in pairs(VFS.DirList(CHONSOLE_FOLDER .. "/exts", "*", VFS.DEF_MODE)) do
+		-- Load translations first
+		if WG.i18n then
+			local fname = ExtractFileName(f)
+			local fdir = ExtractDir(f)
+			local i18nFile = fdir .. "i18n/" .. fname
+			if VFS.FileExists(i18nFile, nil, VFS.DEF_MODE) then
+				local success, err = pcall(function() VFS.Include(i18nFile, nil, VFS.DEF_MODE) end)
+				if not success then
+					Spring.Log("Chonsole", LOG.ERROR, "Error loading translation file: " .. f)
+					Spring.Log("Chonsole", LOG.ERROR, err)
+				end
+				if translations ~= nil then
+					i18n.load(translations)
+				end
+			end
+		end
+		-- Load extension
 		local success, err = pcall(function() VFS.Include(f, nil, VFS.DEF_MODE) end)
 		if not success then
 			Spring.Log("Chonsole", LOG.ERROR, "Error loading extension file: " .. f)
@@ -109,7 +177,6 @@ function widget:Initialize()
 			end
 			if context ~= nil then
 				for _, parser in pairs(context) do
-					Spring.Echo("AAAAAAAAAAAAAAAAAAAAAADDDDDDDDDDDDDDDDDEEEEEEEEEEEDD")
 					table.insert(contextParser, parser)
 				end
 			end
@@ -215,7 +282,7 @@ function widget:KeyPress(key, ...)
 		end
 		screen0:FocusControl(ebConsole)
 		if currentContext == nil or not currentContext.persist then
-			currentContext = defaultContext
+			currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
 		end
 		ShowContext()
 		return true
@@ -356,15 +423,15 @@ end
 
 function PostParseKey(...)
 	local txt = ebConsole.text
-	if txt == "/a " or txt == "a:" then
+	if txt == "/a " or txt == "a:" or txt == "A:" then
 		ebConsole:SetText("")
-		currentContext = { display = "Allies:", name = "allies", persist = true }
+		currentContext = { display = i18n("allies_context", {default="Allies:"}), name = "allies", persist = true }
 	elseif txt == "/s " then
 		ebConsole:SetText("")
-		currentContext = { display = "Say:", name = "say", persist = true }
-	elseif txt == "/spec " or txt == "s:" then
+		currentContext = { display = i18n("say_context", {default="Say:"}), persist = true }
+	elseif txt == "/spec " or txt == "s:" or txt == "S:" then
 		ebConsole:SetText("")
-		currentContext = { display = "Spectators:", name = "spectators", persist = true }
+		currentContext = { display = i18n("spectators_context", {default="Spectators:"}), name = "spectators", persist = true }
 -- 	elseif txt:trim():starts("/") and #txt:trim() > 1 then
 -- 		currentContext = { display = "Command:", name = "command", persist = false }
 	else
@@ -379,7 +446,7 @@ function PostParseKey(...)
 		end
 		
 		if not res and not currentContext.persist then
-			currentContext = { display = "Say:", name = "say", persist = true }
+			currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
 		end
 	end
 	if preText ~= txt then -- only update suggestions if text changed
@@ -462,7 +529,7 @@ function CreateSuggestion(suggestion)
 		local lblCheat = Chili.Label:New {
 			width = 100,
 			x = 200,
-			caption = "(cheat)",
+			caption = i18n("cheat_command", {default="(cheat)"}),
 			align = "right",
 			padding 	  = {0, 0, 0, 0},
 			font = {
@@ -745,7 +812,7 @@ function ProcessText(str)
 					Spring.SendCommands(command)
 				end
 			else
-				Spring.Echo("Unknown command: " .. command)
+				Spring.Log("Chonsole", LOG.WARNING, "Unknown command: " .. command)
 				Spring.SendCommands(command)
 			end
 		end
@@ -768,6 +835,7 @@ function ProcessText(str)
 			end
 			
 			if not found then
+				Spring.Echo(currentContext)
 				Spring.Echo("Unexpected context " .. currentContext.name)
 				command = "say "
 			end
@@ -807,33 +875,12 @@ function AddHistory(str)
 end
 
 function GetCommandList()
-	-- TODO: use the engine provided list instead of a hardcoded one
-	local commandList = {
-	{ command = "Atm",  mode = "synced", description = "Gives 1000 metal and 1000 energy to the issuing players team"},
-	{ command = "Cheat", mode = "synced", description = "Enables/Disables cheating, which is required for a lot of other commands to be usable"},
-	{ command = "Destroy",  mode = "synced", description = "Destroys one or multiple units by unit-ID, instantly"}, 
-	{ command = "DevLua",  mode = "synced",  description = "Enables/Disables Lua dev-mode (can cause desyncs if enabled)" }, 
-	{ command = "EditDefs", mode = "synced", description = "Allows/Disallows editing of unit-, feature- and weapon-defs through Lua", },
-	{ command = "CmdColors",  mode = "unsynced", description = "Reloads cmdcolors.txt" },
-	{ command = "CommandHelp", mode = "unsynced", description = "Prints info about a specific chat command (so far only synced/unsynced and the description)" },
-	{ command = "CommandList", mode = "unsynced", description = "Prints all the available chat commands with description (if available) to the console" },
-	{ command = "Console", mode = "unsynced", description = "Enables/Disables the in-game console"},
-	{ command = "ControlUnit", mode = "unsynced",  description = "Start to first-person-control a unit"}, 
-	{ command = "Crash", mode = "unsynced", description = "Invoke an artificial crash through a NULL-pointer dereference (SIGSEGV)"},
-		-- 	{ name = "CreateVideo                     (unsynced)  Start/Stop capturing a video of the game in progress
-		-- 	{ name = "Cross                           (unsynced)  Allows one to exchange and modify the appearance of the cross/mouse-pointer in first-person-control view
-		-- 	{ name = "CtrlPanel                       (unsynced)  Reloads ctrlpanel.txt
-		-- 	{ name = "Debug                           (unsynced)  Enable/Disable debug info rendering mode
-		-- 	{ name = "DebugColVol                     (unsynced)  Enable/Disable drawing of collision volumes
-		-- 	{ name = "DebugDrawAI                     (unsynced)  Enables/Disables debug drawing for AIs
-		-- 	{ name = "DebugInfo                       (unsynced)  Print debug info to the chat/log-file about either: sound, profiling
-		-- 	{ name = "DebugPath                       (unsynced)  Enable/Disable drawing of pathfinder debug-data
-		-- 	{ name = "DebugTraceRay                   (unsynced)  Enable/Disable drawing of traceray debug-data
-		-- 	{ name = "DecGUIOpacity                   (unsynced)  Decreases the the opacity(see-through-ness) of GUI elements
-	}
+	local commandList = {}
 	
 	if Spring.GetUICommands then
 		commandList = Spring.GetUICommands()
+	else
+		Spring.Log("Chonsole", LOG.ERROR, "Using unsupported engine: no Spring.GetUICommands function")
 	end
 	
 	local names = {}
@@ -846,7 +893,7 @@ function GetCommandList()
 	for i = #commandList, 1, -1 do
 		local cmd = commandList[i]
 		if not cmd.synced and names[cmd.command:lower()] then
-			Spring.Echo("Removed duplicate command: ", cmd.command, cmd.description)
+			Spring.Log("Chonsole", LOG.NOTICE, "Removed duplicate command: ", cmd.command, cmd.description)
 			table.remove(commandList, i)
 		end
 	end

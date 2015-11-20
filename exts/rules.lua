@@ -1,7 +1,7 @@
 commands = {
 	{ 
 		command = "gamerules",
-		description = "Sets values of specific gamerules variables",
+		description = i18n("gamerules_desc", {default="Sets values of specific gamerules variables"}),
 		cheat = true,
 		suggestions = function(cmd, cmdParts)
 			local suggestions = {}
@@ -25,7 +25,7 @@ commands = {
 	},
 	{ 
 		command = "teamrules",
-		description = "Sets values of specific teamrules variables",
+		description = i18n("teamrules_desc", {default="Sets values of specific teamrules variables"}),
 		cheat = true,
 		suggestions = function(cmd, cmdParts)
 			local suggestions = {}
@@ -54,7 +54,7 @@ commands = {
 	},
 	{ 
 		command = "unitrules",
-		description = "Sets unitrules for the selected units",
+		description = i18n("unitrules_desc", {default="Sets unitrules for the selected units"}),
 		cheat = true,
 		suggestions = function(cmd, cmdParts)
 			local suggestions = {}

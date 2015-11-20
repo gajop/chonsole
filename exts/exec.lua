@@ -1,7 +1,7 @@
 commands = {
 	{ 
 		command = "execw",
-		description = "Execute Lua command in a widget",
+		description = i18n("execw_desc", {default = "Execute Lua command in a widget"}),
 		cheat = false,
 		exec = function(command, cmdParts)
 			local commandPart = cmdParts[1]
@@ -26,31 +26,31 @@ commands = {
 	},
 	{ 
 		command = "execs",
-		description = "Execute Lua command in a synced gadget",
+		description = i18n("execs_desc", {default = "Execute Lua command in a synced gadget"}),
 		cheat = true,
 		exec = function(command, cmdParts)
 			local commandPart = cmdParts[1]
 			local x = command:lower():find(commandPart)
 			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			Spring.Echo("SYNCED!")
+			Spring.Echo("TODO: SYNCED!")
 			ExecuteCommand(luaCommandStr)
 		end,
 	},
 	{ 
 		command = "execu",
-		description = "Execute Lua command in an unsynced gadget",
+		description = i18n("execu_desc", {default = "Execute Lua command in an unsynced gadget"}),
 		cheat = false,
 		exec = function(command, cmdParts)
 			local commandPart = cmdParts[1]
 			local x = command:lower():find(commandPart)
 			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			Spring.Echo("UNSYNCED!")
+			Spring.Echo("TODO: UNSYNCED!")
 			ExecuteCommand(luaCommandStr)
 		end,
 	},
 	{ 
 		command = "execgl",
-		description = "Execute Lua command in a widget OpenGL callin",
+		description = i18n("execgl_desc", {default = "Execute Lua command in a widget OpenGL callin"}),
 		cheat = false,
 		exec = function(command, cmdParts)
 			local commandPart = cmdParts[1]

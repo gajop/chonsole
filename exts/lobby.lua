@@ -3,15 +3,16 @@ local consoles = {} -- ID -> name mapping
 
 -- disable in case there's no liblobby installed
 if not WG.LibLobby or not WG.LibLobby.lobby then
-	Spring.Echo("Chonsole", "liblobby is not installed. Lobby support disabled.")
+	Spring.Echo("Chonsole", i18n("liblobby_not_installed", {default = "liblobby is not installed. Lobby support disabled."}))
 	return
 end
-Spring.Echo("Chonsole", "liblobby is installed. Lobby support enabled.")
+Spring.Echo("Chonsole", i18n("liblobby_not_installed", {default = "liblobby is installed. Lobby support enabled."}))
 
+local channelColor = "\204\153\1"
 commands = {
 	{
 		command = "login",
-		description = "Login to Spring Lobby",
+		description = i18n("login_desc", {default = "Login to Spring Lobby"}),
 		exec = function(command, cmdParts)
 			WG.LibLobby.lobby:AddListener("OnTASServer", function()
 				WG.LibLobby.lobby:Login(cmdParts[2], VFS.CalcMd5(cmdParts[3]), 3)
@@ -21,7 +22,7 @@ commands = {
 						while true do
 							if not consoles[id] then
 								consoles[id] = chanName
-								Spring.Echo("\255\204\153\1Joined [" .. tostring(id) .. ". " .. chanName .. "]")
+								Spring.Echo("\255" .. channelColor .. i18n("joined", {default = "Joined"}) .. " [" .. tostring(id) .. ". " .. chanName .. "]")
 								break
 							end
 							id = id + 1
@@ -33,7 +34,7 @@ commands = {
 						for id, name in pairs(consoles) do
 							if name == chanName then
 								-- print channel message
-								local msg = "\255\204\153\1[" .. tostring(id) .. ". " .. chanName .. "] <" .. userName .. "> " .. message .. "\b"
+								local msg = "\255" .. channelColor .. "[" .. tostring(id) .. ". " .. chanName .. "] <" .. userName .. "> " .. message .. "\b"
 								Spring.Echo(msg)
 								break
 							end
@@ -43,12 +44,12 @@ commands = {
 			end)
 			WG.LibLobby.lobby:AddListener("OnAccepted",
 				function(listener)
-				Spring.Echo("\255\204\153\1Connected to server.")
+				Spring.Echo("\255" .. channelColor .. i18n("connected_server", {default="Connected to server."}))
 				end
 			)
 			WG.LibLobby.lobby:AddListener("OnDisconnected",
 				function(listener)
-				Spring.Echo("\255\204\153\1Disconnected from server.")
+				Spring.Echo("\255" .. channelColor .. i18n("disconnected_server", {default="Disconnected from server."}))
 				end
 			)
 			WG.LibLobby.lobby:Connect("springrts.com", 8200)
@@ -56,7 +57,7 @@ commands = {
 	},
 	{
 		command = "logout",
-		description = "Logout from Spring Lobby",
+		description = i18n("logout_desc", {default="Logout from Spring Lobby"}),
 		exec = function(command, cmdParts)
 			Spring.Echo("TODO: LOGOUT")
 -- 			WG.LibLobby.lobby:Connect("springrts.com", 8200)
@@ -67,14 +68,14 @@ commands = {
 	},
 	{
 		command = "join",
-		description = "Join a channel",
+		description = i18n("join_desc", {default="Join a channel"}),
 		exec = function(command, cmdParts)
 			WG.LibLobby.lobby:Join(cmdParts[2], cmdParts[3])
 		end,
 	},
 	{
 		command = "leave",
-		description = "Leave a channel",
+		description = i18n("leave_desc", {default="Leave a channel"}),
 		exec = function(command, cmdParts)
 			local chanName = cmdParts[2]
 			local currentContext = GetCurrentContext()
@@ -88,7 +89,7 @@ commands = {
 			-- TODO: should probably use a listener instead but need to implement it
 			for id, name in pairs(consoles) do
 				if name == chanName then
-					Spring.Echo("\255\204\153\1Left [" .. tostring(id) .. ". " .. chanName .. "]")
+					Spring.Echo("\255" .. channelColor .. i18n("left", {default="Left"}) .. "[" .. tostring(id) .. ". " .. chanName .. "]")
 					if currentContext.name == "channel" and currentContext.id == id then
 						ResetCurrentContext()
 					end
@@ -108,7 +109,7 @@ context = {
 			if tonumber(txt:trim():sub(2)) ~= nil and txt:sub(#txt, #txt) == " " then
 				local id = tonumber(txt:trim():sub(2))
 				if consoles[id] ~= nil then
-					return true, { display = "\255\204\153\1[" .. tostring(id) .. ". " .. consoles[id] .. "]\b", name = "channel", id = id, persist = true }
+					return true, { display = "\255" .. channelColor .. "[" .. tostring(id) .. ". " .. consoles[id] .. "]\b", name = "channel", id = id, persist = true }
 				end
 			end
 		end,

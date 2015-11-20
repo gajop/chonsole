@@ -1,10 +1,14 @@
 commands = {
 	{
 		command = "autocheat",
-		description = "Provides automatic /cheat for commands that need it.",
+		description = i18n("autocheat_desc", {default = "Provides automatic /cheat for commands that need it."}),
 		exec = function(command, cmdParts)
 			autoCheat = not autoCheat
-			Spring.Echo("AutoCheat: " .. tostring(autoCheat))
+			if autoCheat then
+				Spring.Echo(i18n("autocheat_enabled", { default = "AutoCheat enabled."}))
+			else
+				Spring.Echo(i18n("autocheat_disabled", { default = "AutoCheat disabled."}))
+			end
 		end,
 	},
 	{
