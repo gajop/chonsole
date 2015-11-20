@@ -63,7 +63,7 @@ local dynamicSuggestions = {}
 local preText -- used to determine if text changed
 
 -- autocheat
-local autoCheat = true
+autoCheat = true
 local autoCheatBuffer = {}
 
 -- extensions
@@ -78,6 +78,7 @@ function ResetCurrentContext()
 	currentContext = defaultContext
 	ShowContext()
 end
+-- extension API end
 
 function string.trimLeft(str)
   return str:gsub("^%s*(.-)", "%1")

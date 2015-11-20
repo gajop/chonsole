@@ -1,6 +1,13 @@
 -- Lobby chat
 local consoles = {} -- ID -> name mapping
 
+-- disable in case there's no liblobby installed
+if not WG.LibLobby or not WG.LibLobby.lobby then
+	Spring.Echo("Chonsole", "liblobby is not installed. Lobby support disabled.")
+	return
+end
+Spring.Echo("Chonsole", "liblobby is installed. Lobby support enabled.")
+
 commands = {
 	{
 		command = "login",
