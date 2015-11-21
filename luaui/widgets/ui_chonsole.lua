@@ -437,7 +437,7 @@ function PostParseKey(...)
 	else
 		local res, context = false, nil
 		for _, parser in pairs(contextParser) do
-			local success, err = pcall(function() res, context = parser.parse(txt)end)
+			local success, err = pcall(function() res, context = parser.parse(txt) end)
 			if not success then
 				Spring.Log("Chonsole", LOG.ERROR, "Error processing custom context: " .. tostring(cmd.command))
 				Spring.Log("Chonsole", LOG.ERROR, err)
