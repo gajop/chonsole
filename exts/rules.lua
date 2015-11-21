@@ -19,9 +19,12 @@ commands = {
 		end,
 		exec = function(command, cmdParts)
 			if #cmdParts >= 3 then
-				Spring.SendLuaRulesMsg('set_gamerule|' .. cmdParts[2] .. "|" .. cmdParts[3])
+				Sync(cmdParts[2], cmdParts[3])
 			end
-		end
+		end,
+		execs = function(rule, value)
+			Spring.SetGameRulesParam(rule, value)
+		end,
 	},
 	{ 
 		command = "teamrules",
@@ -48,9 +51,12 @@ commands = {
 		end,
 		exec = function(command, cmdParts)
 			if #cmdParts >= 4 then
-				Spring.SendLuaRulesMsg('set_teamrule|' .. cmdParts[2] .. "|" .. cmdParts[3] .. "|" .. cmdParts[4])
+				Sync(cmdParts[2], cmdParts[3], cmdParts[4])
 			end
-		end
+		end,
+		execs = function(teamID, rule, value)
+			Spring.SetTeamRulesParam(teamID, rule, value)
+		end,
 	},
 	{ 
 		command = "unitrules",
@@ -100,9 +106,12 @@ commands = {
 			end
 			if #cmdParts >= 3 then
 				for _, unitID in pairs(units) do
-					Spring.SendLuaRulesMsg('set_unitrule|' .. unitID .. "|" .. cmdParts[2] .. "|" .. cmdParts[3])
+					Sync(unitID, cmdParts[2], cmdParts[3])
 				end
 			end
-		end
+		end,
+		execs = function(unitID, rule, value)
+			Spring.SetUnitRulesParam(unitID, rule, value)
+		end,
 	},
 }

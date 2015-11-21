@@ -1,6 +1,3 @@
-if not gadgetHandler:IsSyncedCode() then
-	return
-end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -14,6 +11,33 @@ function gadget:GetInfo()
 		layer	= 0,
 		enabled = true
 	}
+end
+
+-- shared (synced and unsynced)
+local cmdConfig = {}
+
+-- add optional support for i18n (we won't be using it, but extensions contain translations)
+i18n = function(key, data)
+	data = data or {}
+	return data.default or key
+end
+
+function LoadExtensions()
+	-- Load extensions (We're only interested in commands)
+	for _, f in pairs(VFS.DirList(CHONSOLE_FOLDER .. "/exts", "*", VFS.DEF_MODE)) do
+		local success, err = pcall(function() VFS.Include(f, nil, VFS.DEF_MODE) end)
+		if not success then
+			Spring.Log("Chonsole", LOG.ERROR, "Error loading extension file: " .. f)
+			Spring.Log("Chonsole", LOG.ERROR, err)
+		else
+			if commands ~= nil then
+				for _, cmd in pairs(commands) do
+					Spring.Echo(cmd.command)
+					cmdConfig[cmd.command] = cmd
+				end
+			end
+		end
+	end
 end
 
 local function explode(div,str)
@@ -30,16 +54,62 @@ local function explode(div,str)
 	return arr
 end
 
+-- Hack for ZK as it normally squelches echos
+if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
+	-- FIXME: override Spring.Echo only for this widget
+	local oldEcho = Spring.Echo
+	Spring.Echo = function(...) 
+		x = {...}
+		for i = 1, #x do
+			x[i] = "game_message:" .. x[i]
+		end
+		oldEcho(unpack(x))
+	end
+end
+
+-- SYNCED
+if gadgetHandler:IsSyncedCode() then
+	
+-- this is used to identify the current command used in Unsync
+local currentCmd = ""
+function Unsync(...)
+	local x = {...}
+	local msg = currentCmd
+	for _, v in pairs(x) do
+		msg = msg .. "|" .. v
+	end
+	SendToUnsynced('chonsoleUnsynced', msg)
+end
+
+function gadget:Initialize()
+	LoadExtensions()
+end
+
 function HandleLuaMessage(msg)
 	local msg_table = explode('|', msg)
+	if msg_table[1] == "chonsole" then
+		local cmd = cmdConfig[msg_table[2]]
+		if cmd == nil then
+			Spring.Log("Chonsole", LOG.ERROR, "No such command: " .. msg_table[2])
+			return
+		elseif cmd.execs == nil then
+			Spring.Log("Chonsole", LOG.ERROR, "Command doesn't have synced execute (execs) function defined.")
+			return
+		end
+		local t = {}
+		for i = 3, #msg_table do
+			table.insert(t, msg_table[i])
+		end
+		currentCmd = cmd.command
+		local success, err = pcall(function() cmd.execs(unpack(t)) end)
+		if not success then
+			Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command in synced: " .. tostring(cmd.command))
+			Spring.Log("Chonsole", LOG.ERROR, err)
+		end
+		return
+	end
 	if msg_table[1] == 'luaui_reload' then
 		Spring.SendCommands("luaui reload")
-	elseif msg_table[1] == "set_gamerule" then
-		Spring.SetGameRulesParam(msg_table[2], msg_table[3])
-	elseif msg_table[1] == "set_teamrule" then
-		Spring.SetTeamRulesParam(msg_table[2], msg_table[3], msg_table[4])
-	elseif msg_table[1] == "set_unitrule" then
-		Spring.SetUnitRulesParam(msg_table[2], msg_table[3], msg_table[4])
 	end
 end
 
@@ -47,19 +117,33 @@ function gadget:RecvLuaMsg(msg)
 	HandleLuaMessage(msg)
 end
 
-local myGameRules = {}
+-- UNSYNCED
+else
+	
+local function ExecuteInUnsynced(_, data)
+    local msg_table = explode('|', data)
+	local cmd = cmdConfig[msg_table[1]]
+	if cmd == nil then
+		Spring.Log("Chonsole", LOG.ERROR, "No such command: " .. msg_table[1])
+		return
+	elseif cmd.execu == nil then
+		Spring.Log("Chonsole", LOG.ERROR, "Command doesn't have synced execute (execs) function defined.")
+		return
+	end
+	local t = {}
+	for i = 2, #msg_table do
+		table.insert(t, msg_table[i])
+	end
+	local success, err = pcall(function() cmd.execu(unpack(t)) end)
+	if not success then
+		Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command in synced: " .. tostring(cmd.command))
+		Spring.Log("Chonsole", LOG.ERROR, err)
+	end
+end	
+	
+function gadget:Initialize()
+	LoadExtensions()
+	gadgetHandler:AddSyncAction('chonsoleUnsynced', ExecuteInUnsynced)
+end
 
-function gadget:GameFrame()
--- 	for index, rule in pairs(Spring.GetGameRulesParams()) do
--- 		if type(rule) == "table" then
--- 			for name, value in pairs(rule) do
--- 				local myGameVar = "_game_rule" .. type(value) .. name
--- 				if myGameRules[name] == nil then
--- 					myGameRules[name] = myGameVar
--- 					myGameRules[myGameVar] = true
--- 					Spring.SetGameRulesParam(myGameVar, value)
--- 				end
--- 			end
--- 		end
--- 	end
 end

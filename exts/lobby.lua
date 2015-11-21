@@ -1,5 +1,5 @@
 -- disable in case there's no liblobby installed
-if not WG.LibLobby or not WG.LibLobby.lobby then
+if not WG or not WG.LibLobby or not WG.LibLobby.lobby then
 	Spring.Echo("Chonsole", i18n("liblobby_not_installed", {default = "liblobby is not installed. Lobby support disabled."}))
 	return
 end
@@ -122,6 +122,7 @@ commands = {
 	},
 	-- TODO: support for private chat, /ignore, /friend, /friendlist, /channelist, /ignorelist
 	-- TODO: preserve channel list. This may belong to liblobby instead.
+	-- TODO: battleroom chat
 }
 
 context = {

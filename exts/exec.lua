@@ -1,28 +1,39 @@
+-- This module provides functionality for executing Lua code using the console
+
+-- TODO: would be nice if we could print the evaluation of some commands, e.g. "/execw 5+5" could print 10
+local function ExecuteLuaCommand(luaCommandStr)
+	Spring.Echo("$ " .. luaCommandStr)
+-- 			if not luaCommandStr:gsub("==", "_"):gsub("~=", "_"):gsub(">=", "_"):gsub("<=", "_"):find("=") then
+-- 				luaCommandStr = "return " .. luaCommandStr
+-- 			end
+	local luaCommand, msg = loadstring(luaCommandStr)
+	if not luaCommand then
+		Spring.Echo(msg)
+	else
+		setfenv(luaCommand, getfenv())
+		local success, msg = pcall(function()
+			local msg = {luaCommand()}
+			if #msg > 0 then
+				Spring.Echo(unpack(msg))
+			end
+		end)
+		if not success then
+			Spring.Echo(msg)
+		end
+	end
+end
+
 commands = {
 	{ 
-		command = "execw",
-		description = i18n("execw_desc", {default = "Execute Lua command in a widget"}),
+		command = "exec",
+		description = i18n("exec_desc", {default = "Execute Lua command in a widget"}),
 		cheat = false,
 		exec = function(command, cmdParts)
 			local commandPart = cmdParts[1]
 			local x = command:lower():find(commandPart)
 			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			ExecuteCommand(luaCommandStr)
-		end
--- 		suggestions = function(cmd, cmdParts)
--- 			local suggestions = {}
--- 			local param = cmdParts[2]
--- 			for index, rule in pairs(Spring.GetGameRulesParams()) do
--- 				if type(rule) == "table" then
--- 					for name, value in pairs(rule) do
--- 						if param == nil or param == "" or name:starts(param) then
--- 							table.insert(suggestions, { command = "/gamerules " .. name, text = name, description = value })
--- 						end
--- 					end
--- 				end
--- 			end
--- 			return suggestions
--- 		end,
+			ExecuteLuaCommand(luaCommandStr)
+		end,
 	},
 	{ 
 		command = "execs",
@@ -32,20 +43,27 @@ commands = {
 			local commandPart = cmdParts[1]
 			local x = command:lower():find(commandPart)
 			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			Spring.Echo("TODO: SYNCED!")
-			ExecuteCommand(luaCommandStr)
+			Sync(luaCommandStr)
+		end,
+		execs = function(luaCommandStr)
+			ExecuteLuaCommand(luaCommandStr)
 		end,
 	},
 	{ 
 		command = "execu",
 		description = i18n("execu_desc", {default = "Execute Lua command in an unsynced gadget"}),
-		cheat = false,
+		cheat = true,
 		exec = function(command, cmdParts)
 			local commandPart = cmdParts[1]
 			local x = command:lower():find(commandPart)
 			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			Spring.Echo("TODO: UNSYNCED!")
-			ExecuteCommand(luaCommandStr)
+			Sync(luaCommandStr)
+		end,
+		execs = function(luaCommandStr)
+			Unsync(luaCommandStr)
+		end,
+		execu = function(luaCommandStr)
+			ExecuteLuaCommand(luaCommandStr)
 		end,
 	},
 	{ 
@@ -56,7 +74,7 @@ commands = {
 			local commandPart = cmdParts[1]
 			local x = command:lower():find(commandPart)
 			local luaCommandStr = command:sub(x + #commandPart):trimLeft()
-			delayGL = function() ExecuteCommand(luaCommandStr) end
+			delayGL = function() ExecuteLuaCommand(luaCommandStr) end
 		end,
 	},
 }

@@ -61,6 +61,19 @@ local autoCheatBuffer = {}
 local cmdConfig = {}
 local contextParser = {}
 
+-- Hack for ZK as it normally squelches echos
+if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
+	-- FIXME: override Spring.Echo only for this widget
+	local oldEcho = Spring.Echo
+	Spring.Echo = function(...) 
+		x = {...}
+		for i = 1, #x do
+			x[i] = "game_message:" .. x[i]
+		end
+		oldEcho(unpack(x))
+	end
+end
+
 -- extension API
 function GetCurrentContext()
 	return currentContext
@@ -68,6 +81,16 @@ end
 function ResetCurrentContext()
 	currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
 	ShowContext()
+end
+-- this is used to identify the current command used in Sync
+local currentCmd = ""
+function Sync(...)
+	local x = {...}
+	local msg = "chonsole|" .. currentCmd
+	for _, v in pairs(x) do
+		msg = msg .. "|" .. v
+	end
+	Spring.SendLuaRulesMsg(msg)
 end
 -- extension API end
 
@@ -137,6 +160,7 @@ function widget:Initialize()
 			i18n.load(translations)
 		end
 	end
+	
 	-- Load extensions
 	for _, f in pairs(VFS.DirList(CHONSOLE_FOLDER .. "/exts", "*", VFS.DEF_MODE)) do
 		-- Load translations first
@@ -165,7 +189,6 @@ function widget:Initialize()
 				for _, cmd in pairs(commands) do
 					table.insert(cmdConfig, cmd)
 				end
-	-- 			table.merge(cmdConfig, t.commands)
 			end
 			if context ~= nil then
 				for _, parser in pairs(context) do
@@ -768,28 +791,6 @@ function ShowHistoryItem()
 	end
 end
 
-function ExecuteCommand(luaCommandStr)
-	Spring.Echo("$ " .. luaCommandStr)
--- 			if not luaCommandStr:gsub("==", "_"):gsub("~=", "_"):gsub(">=", "_"):gsub("<=", "_"):find("=") then
--- 				luaCommandStr = "return " .. luaCommandStr
--- 			end
-	local luaCommand, msg = loadstring(luaCommandStr)
-	if not luaCommand then
-		Spring.Echo(msg)
-	else
-		setfenv(luaCommand, getfenv())
-		local success, msg = pcall(function()
-			local msg = {luaCommand()}
-			if #msg > 0 then
-				Spring.Echo(unpack(msg))
-			end
-		end)
-		if not success then
-			Spring.Echo(msg)
-		end
-	end
-end
-
 function ProcessText(str)
 	if #str:trim() == 0 then
 		return
@@ -806,11 +807,13 @@ function ProcessText(str)
 		else
 			for _, cmd in pairs(cmdConfig) do
 				if cmd.command == cmdParts[1]:lower() and cmd.exec ~= nil then
+					currentCmd = cmd.command
 					local success, err = pcall(function() cmd.exec(command, cmdParts) end)
 					if not success then
 						Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command: " .. tostring(cmd.command))
 						Spring.Log("Chonsole", LOG.ERROR, err)
 					end
+					currentCmd = ""
 					return
 				end
 			end
