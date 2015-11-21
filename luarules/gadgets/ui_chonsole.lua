@@ -60,7 +60,7 @@ if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
 	Spring.Echo = function(...) 
 		x = {...}
 		for i = 1, #x do
-			x[i] = "game_message:" .. x[i]
+			x[i] = "game_message:" .. tostring(x[i])
 		end
 		oldEcho(unpack(x))
 	end
@@ -94,7 +94,7 @@ function ExecuteCustomCommand(cmd, params)
 	currentCmd = ""
 end
 
-function HandleLuaMessage(msg)
+function gadget:RecvLuaMsg(msg, playerID)
 	local msg_table = explode('|', msg)
 	if msg_table[1] == "chonsole" then
 		local cmd = cmdConfig[msg_table[2]]
@@ -116,13 +116,10 @@ function HandleLuaMessage(msg)
 		end
 		return
 	end
+	-- send to unsynced and only do it for the player that issued the command
 	if msg_table[1] == 'luaui_reload' then
-		Spring.SendCommands("luaui reload")
+		SendToUnsynced('chonsoleUnsyncedReloadLuaUI', tostring(playerID))
 	end
-end
-
-function gadget:RecvLuaMsg(msg)
-	HandleLuaMessage(msg)
 end
 
 -- UNSYNCED
@@ -148,10 +145,17 @@ local function ExecuteInUnsynced(_, data)
 		Spring.Log("Chonsole", LOG.ERROR, err)
 	end
 end	
-	
+
+local function ReloadUI(_, playerIDStr)
+	if Spring.GetMyPlayerID() == tonumber(playerIDStr) then
+		Spring.SendCommands("luaui reload")
+	end
+end
+
 function gadget:Initialize()
 	LoadExtensions()
 	gadgetHandler:AddSyncAction('chonsoleUnsynced', ExecuteInUnsynced)
+	gadgetHandler:AddSyncAction('chonsoleUnsyncedReloadLuaUI', ReloadUI)
 end
 
 end

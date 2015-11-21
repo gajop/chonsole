@@ -128,6 +128,8 @@ commands = {
 	-- TODO: support for private chat, /ignore, /friend, /friendlist, /channelist, /ignorelist
 	-- TODO: preserve channel list. This may belong to liblobby instead.
 	-- TODO: battleroom chat
+	-- TODO: channel/battleroom join/part messages
+	-- TODO: friends coming online/offline
 }
 
 context = {

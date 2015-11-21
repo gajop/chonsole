@@ -68,7 +68,7 @@ if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
 	Spring.Echo = function(...) 
 		x = {...}
 		for i = 1, #x do
-			x[i] = "game_message:" .. x[i]
+			x[i] = "game_message:" .. tostring(x[i])
 		end
 		oldEcho(unpack(x))
 	end
@@ -811,7 +811,6 @@ function ProcessText(str)
 		local command = str:sub(2):trimLeft()
 		local cmdParts = explode(" ", command:gsub("%s+", " "))
 		if #cmdParts == 2 and cmdParts[1]:lower() == "luaui" and cmdParts[2]:lower() == "reload" then
-			-- FIXME: This is awful as it will reload everyones Lua UI
 			Spring.SendLuaRulesMsg('luaui_reload')
 		else
 			for _, cmd in pairs(cmdConfig) do
