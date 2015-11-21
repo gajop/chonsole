@@ -41,7 +41,12 @@ lobby:AddListener("OnSaid",
 )
 lobby:AddListener("OnAccepted",
 	function(listener)
-		Spring.Echo("\255" .. channelColor .. i18n("connected_server", {default="Connected to server."}))
+		Spring.Echo("\255" .. channelColor .. i18n("connected_server", {default="Connected to server."}) .. "\b")
+	end
+)
+lobby:AddListener("OnDenied",
+	function(listener, reason)
+		Spring.Echo("\255" .. channelColor .. i18n("failed_connect", {default="Failed connecting to server: "}) .. reason .. "\b")
 	end
 )
 lobby:AddListener("OnDisconnected",
@@ -55,7 +60,7 @@ lobby:AddListener("OnDisconnected",
 		if lobby:GetConnectionStatus() == "disconnected" then
 			-- FIXME: make this variable part of the API
 			local delay = lobby.reconnectionDelay
-			Spring.Echo("\255" .. channelColor .. i18n("announce_reconnect", {default="Attempting reconnect in %{delay} seconds.", delay=delay}))	
+			Spring.Echo("\255" .. channelColor .. i18n("announce_reconnect", {default="Attempting reconnect in %{delay} seconds.", delay=delay}) .. "\b")	
 		end
 	end
 )
@@ -65,8 +70,9 @@ commands = {
 		command = "login",
 		description = i18n("login_desc", {default = "Login to Spring Lobby"}),
 		exec = function(command, cmdParts)
+			Spring.Echo("\255" .. channelColor .. i18n("connecting_server", {default="Connecting to server..."}))
 			lobby:AddListener("OnTASServer", function()
-				lobby:Login(cmdParts[2], VFS.CalcMd5(cmdParts[3]), 3)
+				lobby:Login(cmdParts[2], cmdParts[3], 3)
 			end)
 			lobby:Connect("springrts.com", 8200)
 		end,
