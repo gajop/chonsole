@@ -27,6 +27,28 @@ lobby:AddListener("OnJoin",
 		end
 	end
 )
+lobby:AddListener("OnJoined",
+	function(listener, chanName, userName)
+		for id, name in pairs(consoles) do
+			if name == chanName then
+				consoles[id] = chanName
+				Spring.Echo("\255" .. channelColor .. userName .. " " .. i18n("user_joined", {default = "joined"}) .. " [" .. tostring(id) .. ". " .. chanName .. "]")
+				break
+			end
+		end
+	end
+)
+lobby:AddListener("OnLeft",
+	function(listener, chanName, userName)
+		for id, name in pairs(consoles) do
+			if name == chanName then
+				consoles[id] = chanName
+				Spring.Echo("\255" .. channelColor .. userName .. " " .. i18n("user_left", {default = "left"}) .. " [" .. tostring(id) .. ". " .. chanName .. "]")
+				break
+			end
+		end
+	end
+)
 lobby:AddListener("OnSaid", 
 	function(listener, chanName, userName, message)
 		for id, name in pairs(consoles) do
@@ -134,7 +156,7 @@ commands = {
 	-- TODO: support for private chat, /ignore, /friend, /friendlist, /channelist, /ignorelist
 	-- TODO: preserve channel list. This may belong to liblobby instead.
 	-- TODO: battleroom chat
-	-- TODO: channel/battleroom join/part messages
+	-- TODO: battleroom join/part messages
 	-- TODO: friends coming online/offline
 }
 

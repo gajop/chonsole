@@ -503,7 +503,7 @@ function ShowContext()
 	lblContext:SetCaption(currentContext.display)
 end
 
-function CreateSuggestion(suggestion)
+function MakeSuggestion(suggestion)
 	local ctrlSuggestion = Chili.Button:New {
 		x = 0,
 		minHeight = config.suggestions.fontSize + config.suggestions.padding,
@@ -513,26 +513,13 @@ function CreateSuggestion(suggestion)
 		draggable = false,
 		padding  = {0,0,0,0},
 		--focusColor = { 0, 0, 0, 0 },
-		id = suggestion.id,
 		caption = "",
-		OnClick = {
-			function()
-				local txt = suggestion.text
-				if suggestion.dynId ~= nil then
-					txt = suggestions[filteredSuggestions[1]].text .. " " .. txt
-				end
-				ebConsole:SetText(txt)
-				ebConsole.cursor = #ebConsole.text + 1
-				screen0:FocusControl(ebConsole)
-				UpdateSuggestions()
-			end,
-		}
 	}
 	local lblSuggestion = Chili.Label:New {
 		x = 0,
-		caption = suggestion.text,
+		caption = "",
 		autosize = true,
-		padding 	  = {0, 0, 0, 0},
+		padding = {0, 0, 0, 0},
 		font = {
 			size = config.suggestions.fontSize,
 -- 			shadow = false,
@@ -545,8 +532,8 @@ function CreateSuggestion(suggestion)
 	local lblDescription = Chili.Label:New {
 		x = 300,
 		autosize = true,
-		caption = suggestion.description or "",
-		padding 	  = {0, 0, 0, 0},
+		caption = "",
+		padding = {0, 0, 0, 0},
 		font = {
 			size = config.suggestions.fontSize,
 -- 			shadow = false,
@@ -562,7 +549,7 @@ function CreateSuggestion(suggestion)
 			x = 200,
 			caption = i18n("cheat_command", {default="(cheat)"}),
 			align = "right",
-			padding 	  = {0, 0, 0, 0},
+			padding = {0, 0, 0, 0},
 			font = {
 				size = config.suggestions.fontSize,
 -- 				shadow = false,
@@ -573,6 +560,29 @@ function CreateSuggestion(suggestion)
 		ctrlSuggestion.lblCheat = lblCheat
 	end
 	return ctrlSuggestion
+end
+
+function PopulateSuggestion(ctrlSuggestion, suggestion)
+	ctrlSuggestion.id = suggestion.id
+	ctrlSuggestion.OnClick = {
+		function()
+			local txt = suggestion.text
+			if suggestion.dynId ~= nil then
+				txt = suggestions[filteredSuggestions[1]].text .. " " .. txt
+			end
+			ebConsole:SetText(txt)
+			ebConsole.cursor = #ebConsole.text + 1
+			screen0:FocusControl(ebConsole)
+			UpdateSuggestions()
+		end,
+	}
+	ctrlSuggestion.lblSuggestion:SetCaption(suggestion.text)
+	ctrlSuggestion.lblDescription:SetCaption(suggestion.description or "")
+	return ctrlSuggestion
+end
+
+function CreateSuggestion(suggestion)
+	return PopulateSuggestion(MakeSuggestion(suggestion), suggestion)
 end
 
 function GenerateSuggestions()
@@ -625,21 +635,20 @@ end
 function CleanupSuggestions()
 	-- cleanup dynamic suggestions
 	for _, dynamicSuggestion in pairs(dynamicSuggestions) do
-		spSuggestions:RemoveChild(dynamicSuggestion)
-		dynamicSuggestion:Dispose()
+		dynamicSuggestion.suggestion.visible = false
 	end
-	
-	dynamicSuggestions = {}
+
 	filteredSuggestions = {}
+	
+	for _, suggestion in pairs(suggestions) do
+		suggestion.visible = false
+	end
 end
 
 function FilterSuggestions(txt)
 	CleanupSuggestions()
 	
 	local count = 0
-	for _, suggestion in pairs(suggestions) do
-		suggestion.visible = false
-	end
 	if txt:sub(1, 1) == "/" then
 		local cmdParts = explode(" ", txt:sub(2):trimLeft():gsub("%s+", " "))
 		local partialCmd = cmdParts[1]:lower()
@@ -666,7 +675,7 @@ function FilterSuggestions(txt)
 -- 			end
 -- 		end
 
-		-- only one suggestion is visible
+		-- generate sub suggestions when only one field is visible
 		if count == 1 then
 			local suggestion = suggestions[filteredSuggestions[1]]
 			if suggestion.suggestions ~= nil then
@@ -683,11 +692,17 @@ function FilterSuggestions(txt)
 					if suggestion.visible == nil then
 						suggestion.visible = true
 					end
-					local ctrlSuggestion = CreateSuggestion(suggestion)
-					ctrlSuggestion.suggestion = suggestion
-					ctrlSuggestion.suggestion.dynId = i
-					table.insert(dynamicSuggestions, ctrlSuggestion)
-					spSuggestions:AddChild(ctrlSuggestion)
+					suggestion.dynId = #dynamicSuggestions + 1
+					if i > #dynamicSuggestions then
+						local ctrlSuggestion = CreateSuggestion(suggestion)
+						ctrlSuggestion.suggestion = suggestion
+						table.insert(dynamicSuggestions, ctrlSuggestion)
+						spSuggestions:AddChild(ctrlSuggestion)
+					else
+						local ctrlSuggestion = dynamicSuggestions[i]
+						ctrlSuggestion.suggestion.visible = true
+						PopulateSuggestion(ctrlSuggestion, suggestion)
+					end
 				end
 			end
 		end
@@ -822,7 +837,7 @@ function ProcessText(str)
 						table.insert(autoCheatBuffer, {cmd, command, cmdParts})
 					else
 						Spring.Echo("Enable cheats with /cheat or /autocheat")
-						-- NOTICE: Custom commands won't even be attempted
+						-- NOTICE: Custom commands won't even be attempted if they're supposed to fail
 						-- In case a user tries to manually send such attempts, it will still be stopped in the gadget.
 						-- ExecuteCustomCommand(cmd, command, cmdParts)
 					end
@@ -840,7 +855,7 @@ function ProcessText(str)
 						table.insert(autoCheatBuffer, command)
 					else
 						Spring.Echo("Enable cheats with /cheat or /autocheat")
-						-- NOTICE: It will still try to execute the command which should fail.
+						-- NOTICE: It will still try to execute the engine command which should fail.
 						Spring.SendCommands(command)
 					end
 				else
