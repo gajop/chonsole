@@ -12,15 +12,6 @@ end
 
 VFS.Include(CHONSOLE_FOLDER .. "/luaui/config/globals.lua", nil, VFS.DEF_MODE)
 
--- constants
-local grey = { 0.7, 0.7, 0.7, 1 }
-local white = { 1, 1, 1, 1 }
-local blue = { 0, 0, 1, 1 }
-local teal = { 0, 1, 1, 1 }
-local red =  { 1, 0, 0, 1 }
-local green = { 0, 1, 0, 1 }
-local yellow = { 1, 1, 0, 1 }
-
 -- context 
 local currentContext
 
@@ -62,6 +53,7 @@ local dynamicSuggestions = {}
 local preText -- used to determine if text changed
 
 -- autocheat
+-- TODO: make it part of the extensions instead
 autoCheat = true
 local autoCheatBuffer = {}
 
@@ -500,6 +492,18 @@ function CreateSuggestion(suggestion)
 		--focusColor = { 0, 0, 0, 0 },
 		id = suggestion.id,
 		caption = "",
+		OnClick = {
+			function()
+				local txt = suggestion.text
+				if suggestion.dynId ~= nil then
+					txt = suggestions[filteredSuggestions[1]].text .. " " .. txt
+				end
+				ebConsole:SetText(txt)
+				ebConsole.cursor = #ebConsole.text + 1
+				screen0:FocusControl(ebConsole)
+				UpdateSuggestions()
+			end,
+		}
 	}
 	local lblSuggestion = Chili.Label:New {
 		x = 0,
@@ -509,7 +513,7 @@ function CreateSuggestion(suggestion)
 		font = {
 			size = config.suggestions.fontSize,
 -- 			shadow = false,
-			color = white,
+			color = config.suggestions.suggestionColor,
 			font = config.console.fontFile,
 		},
 		parent = ctrlSuggestion,
@@ -523,7 +527,7 @@ function CreateSuggestion(suggestion)
 		font = {
 			size = config.suggestions.fontSize,
 -- 			shadow = false,
-			color = grey,
+			color = config.suggestions.descriptionColor,
 			font = config.console.fontFile,
 		},
 		parent = ctrlSuggestion,
@@ -539,7 +543,6 @@ function CreateSuggestion(suggestion)
 			font = {
 				size = config.suggestions.fontSize,
 -- 				shadow = false,
-				color = color,
 				font = config.console.fontFile,
 			},
 			parent = ctrlSuggestion,
@@ -698,11 +701,11 @@ function UpdateSuggestionDisplay(suggestion, ctrlSuggestion, row)
 		if suggestion.cheat then
 			local cheatColor
 			if Spring.IsCheatingEnabled() then
-				cheatColor = green
+				cheatColor = config.suggestions.cheatEnabledColor
 			elseif autoCheat then
-				cheatColor = yellow
+				cheatColor = config.suggestions.autoCheatColor
 			else
-				cheatColor = red
+				cheatColor = config.suggestions.cheatDisabledColor
 			end
 			ctrlSuggestion.lblCheat.font.color = cheatColor
 			ctrlSuggestion.lblCheat:Invalidate()

@@ -21,7 +21,14 @@ config = {
 		padding = 4,
 		pageUpFactor = 10,
 		pageDownFactor = 10,
+
 		selectedColor = { 0, 1, 1, 0.4 },
 		subsuggestionColor = { 0, 0, 0, 0 },
+		suggestionColor = white,
+		descriptionColor = grey,
+
+		cheatEnabledColor = green,
+		cheatDisabledColor = red,
+		autoCheatColor = yellow,
 	},
 }
