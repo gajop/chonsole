@@ -1,5 +1,10 @@
+-- Do not load this in gadgets
+if not WG then
+	return
+end
+
 -- disable in case there's no liblobby installed
-if not WG or not WG.LibLobby or not WG.LibLobby.lobby then
+if not WG.LibLobby or not WG.LibLobby.lobby then
 	Spring.Echo("Chonsole", i18n("liblobby_not_installed", {default = "liblobby is not installed. Lobby support disabled."}))
 	return
 end

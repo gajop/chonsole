@@ -32,7 +32,6 @@ function LoadExtensions()
 		else
 			if commands ~= nil then
 				for _, cmd in pairs(commands) do
-					Spring.Echo(cmd.command)
 					cmdConfig[cmd.command] = cmd
 				end
 			end
@@ -85,6 +84,16 @@ function gadget:Initialize()
 	LoadExtensions()
 end
 
+function ExecuteCustomCommand(cmd, params)
+	currentCmd = cmd.command
+	local success, err = pcall(function() cmd.execs(unpack(params)) end)
+	if not success then
+		Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command in synced: " .. tostring(cmd.command))
+		Spring.Log("Chonsole", LOG.ERROR, err)
+	end
+	currentCmd = ""
+end
+
 function HandleLuaMessage(msg)
 	local msg_table = explode('|', msg)
 	if msg_table[1] == "chonsole" then
@@ -96,15 +105,14 @@ function HandleLuaMessage(msg)
 			Spring.Log("Chonsole", LOG.ERROR, "Command doesn't have synced execute (execs) function defined.")
 			return
 		end
-		local t = {}
+		local params = {}
 		for i = 3, #msg_table do
-			table.insert(t, msg_table[i])
+			table.insert(params, msg_table[i])
 		end
-		currentCmd = cmd.command
-		local success, err = pcall(function() cmd.execs(unpack(t)) end)
-		if not success then
-			Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command in synced: " .. tostring(cmd.command))
-			Spring.Log("Chonsole", LOG.ERROR, err)
+		if not cmd.cheat or Spring.IsCheatingEnabled() then
+			ExecuteCustomCommand(cmd, params)
+		else
+			Spring.Log("Chonsole", LOG.ERROR, "Attempt to execute command that requires cheats while cheating is enabled.")
 		end
 		return
 	end

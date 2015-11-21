@@ -791,29 +791,42 @@ function ShowHistoryItem()
 	end
 end
 
+function ExecuteCustomCommand(cmd, command, cmdParts)
+	currentCmd = cmd.command
+	local success, err = pcall(function() cmd.exec(command, cmdParts) end)
+	if not success then
+		Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command: " .. tostring(cmd.command))
+		Spring.Log("Chonsole", LOG.ERROR, err)
+	end
+	currentCmd = ""
+end
+
 function ProcessText(str)
 	if #str:trim() == 0 then
 		return
 	end
 	AddHistory(str)
-	--str = str:trim()
 	-- command
 	if str:sub(1, 1) == '/' then
 		local command = str:sub(2):trimLeft()
-		local cmdParts = explode(" ", command:lower():gsub("%s+", " "))
-		if #cmdParts == 2 and cmdParts[1] == "luaui" and cmdParts[2] == "reload" then
+		local cmdParts = explode(" ", command:gsub("%s+", " "))
+		if #cmdParts == 2 and cmdParts[1]:lower() == "luaui" and cmdParts[2]:lower() == "reload" then
 			-- FIXME: This is awful as it will reload everyones Lua UI
 			Spring.SendLuaRulesMsg('luaui_reload')
 		else
 			for _, cmd in pairs(cmdConfig) do
 				if cmd.command == cmdParts[1]:lower() and cmd.exec ~= nil then
-					currentCmd = cmd.command
-					local success, err = pcall(function() cmd.exec(command, cmdParts) end)
-					if not success then
-						Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command: " .. tostring(cmd.command))
-						Spring.Log("Chonsole", LOG.ERROR, err)
+					if not cmd.cheat or Spring.IsCheatingEnabled() then
+						ExecuteCustomCommand(cmd, command, cmdParts)
+					elseif autoCheat then
+						Spring.SendCommands("cheat 1")
+						table.insert(autoCheatBuffer, {cmd, command, cmdParts})
+					else
+						Spring.Echo("Enable cheats with /cheat or /autocheat")
+						-- NOTICE: Custom commands won't even be attempted
+						-- In case a user tries to manually send such attempts, it will still be stopped in the gadget.
+						-- ExecuteCustomCommand(cmd, command, cmdParts)
 					end
-					currentCmd = ""
 					return
 				end
 			end
@@ -822,12 +835,13 @@ function ProcessText(str)
 			Spring.Echo(command)
 			if index then
 				local suggestion = suggestions[index]
-				if (suggestion.cheat or cmdParts[1] == "luarules" and cmdParts[2] == "reload") and not Spring.IsCheatingEnabled() then
+				if (suggestion.cheat or cmdParts[1]:lower() == "luarules" and cmdParts[2]:lower() == "reload") and not Spring.IsCheatingEnabled() then
 					if autoCheat then
 						Spring.SendCommands("cheat 1")
 						table.insert(autoCheatBuffer, command)
 					else
 						Spring.Echo("Enable cheats with /cheat or /autocheat")
+						-- NOTICE: It will still try to execute the command which should fail.
 						Spring.SendCommands(command)
 					end
 				else
@@ -883,7 +897,13 @@ end
 function widget:Update()
 	if #autoCheatBuffer > 0 and Spring.IsCheatingEnabled() then
 		for _, command in pairs(autoCheatBuffer) do
-			Spring.SendCommands(command)
+			-- engine command
+			if type(command) == "string" then
+				Spring.SendCommands(command)
+			-- custom command
+			elseif type(command) == "table" then
+				ExecuteCustomCommand(command[1], command[2], command[3])
+			end
 		end
 		autoCheatBuffer = {}
 		Spring.SendCommands("cheat 0")
