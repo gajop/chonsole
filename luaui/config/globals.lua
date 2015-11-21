@@ -13,7 +13,7 @@ config = {
 		x = 0.26,
 		y = 0.25,
 		w = 0.5,
-		fontFile = "LuaUI/fonts/dejavu-sans-mono/DejaVuSansMono.ttf",
+		--fontFile = "LuaUI/fonts/dejavu-sans-mono/DejaVuSansMono.ttf",
 	},
 	suggestions = {
 		h = 0.4,
