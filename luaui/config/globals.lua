@@ -17,6 +17,7 @@ config = {
 	},
 	suggestions = {
 		h = 0.4,
+		inverted = false, -- if set to true, it will appear above the console
 		fontSize = 16,
 		padding = 4,
 		pageUpFactor = 10,

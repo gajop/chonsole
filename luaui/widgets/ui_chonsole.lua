@@ -272,9 +272,24 @@ function widget:Initialize()
 	ResizeUI(vsx, vsy)
 end
 
+function AreSuggestionsInverted()
+	if config.suggestions.inverted then
+		return true
+	end
+	local _, vsy = Spring.GetViewGeometry()
+	local y = config.console.y * vsy + ebConsole.height
+	local h = config.suggestions.h * vsy
+	return y + h > vsy and y - h >= 0
+end
+
 function ResizeUI(vsx, vsy)
 	ebConsole:SetPos(config.console.x * vsx, config.console.y * vsy, config.console.w * vsx)
-	scrollSuggestions:SetPos(config.console.x * vsx, config.console.y * vsy + ebConsole.height, config.console.w * vsx, config.suggestions.h * vsy)
+	if not AreSuggestionsInverted() then
+		scrollSuggestions:SetPos(config.console.x * vsx, config.console.y * vsy + ebConsole.height, config.console.w * vsx, config.suggestions.h * vsy)
+	else
+		local sh = config.suggestions.h * vsy
+		scrollSuggestions:SetPos(config.console.x * vsx, config.console.y * vsy - sh, config.console.w * vsx, sh)
+	end
 	spSuggestions:SetPos(nil, nil, config.console.w * vsx, config.suggestions.h * vsy)
 	lblContext:SetPos(config.console.x * vsx - lblContext.width - 6, config.console.y * vsy + 7)
 end
