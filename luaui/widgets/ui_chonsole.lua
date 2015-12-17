@@ -339,7 +339,7 @@ end
 
 function SuggestionsDown()
 	if #filteredSuggestions == 1 and #dynamicSuggestions ~= 0 then
-		if #dynamicSuggestions > currentSubSuggestion then
+		if #dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible then
 			currentSubSuggestion = currentSubSuggestion + 1
 			local suggestion = dynamicSuggestions[currentSubSuggestion].suggestion
 			ebConsole:SetText(suggestion.command)
@@ -381,7 +381,7 @@ function ParseKey(ebConsole, key, mods, ...)
 			currentHistory = currentHistory - 1
 			ShowHistoryItem()
 			ShowSuggestions()
-		elseif #filteredSuggestions > currentSuggestion or #dynamicSuggestions > currentSubSuggestion then
+		elseif #filteredSuggestions > currentSuggestion or (#dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible) then
 			SuggestionsDown()
 		end
 	elseif key == Spring.GetKeyCode("tab") then
@@ -394,7 +394,7 @@ function ParseKey(ebConsole, key, mods, ...)
 		else
 			nextSuggestion = 1
 		end
-		if #dynamicSuggestions > currentSubSuggestion then
+		if #dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible then
 			nextSubSuggestion = currentSubSuggestion + 1
 		else
 			nextSubSuggestion = 1
@@ -425,13 +425,13 @@ function ParseKey(ebConsole, key, mods, ...)
 		end
 	elseif key == Spring.GetKeyCode("pageup") then
 		for i = 1, config.suggestions.pageUpFactor do
-			if currentSuggestion > 0 then
+			if currentSuggestion > 0 or currentSubSuggestion > 0 then
 				SuggestionsUp()
 			end
 		end
 	elseif key == Spring.GetKeyCode("pagedown") then
 		for i = 1, config.suggestions.pageDownFactor do
-			if #filteredSuggestions > currentSuggestion then
+			if #filteredSuggestions > currentSuggestion or (#dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible) then
 				SuggestionsDown()
 			end
 		end
@@ -694,29 +694,30 @@ function FilterSuggestions(txt)
 		if count == 1 then
 			local suggestion = suggestions[filteredSuggestions[1]]
 			if suggestion.suggestions ~= nil then
-				local suggestions
+				local subSuggestions
 				local success, err = pcall(function() 
-					suggestions = suggestion.suggestions(txt, cmdParts)
+					subSuggestions = suggestion.suggestions(txt, cmdParts)
 				end)
 				if not success then
 					Spring.Log("Chonsole", LOG.ERROR, "Error obtaining suggestions for command: " .. tostring(suggestion.command))
 					Spring.Log("Chonsole", LOG.ERROR, err)
 					return
 				end
-				for i, suggestion in pairs(suggestions) do
-					if suggestion.visible == nil then
-						suggestion.visible = true
+				for i, subSuggestion in pairs(subSuggestions) do
+					if subSuggestion.visible == nil then
+						subSuggestion.visible = true
 					end
-					suggestion.dynId = #dynamicSuggestions + 1
+					subSuggestion.dynId = #dynamicSuggestions + 1
 					if i > #dynamicSuggestions then
-						local ctrlSuggestion = CreateSuggestion(suggestion)
-						ctrlSuggestion.suggestion = suggestion
+						local ctrlSuggestion = CreateSuggestion(subSuggestion)
+						ctrlSuggestion.suggestion = subSuggestion
 						table.insert(dynamicSuggestions, ctrlSuggestion)
 						spSuggestions:AddChild(ctrlSuggestion)
 					else
 						local ctrlSuggestion = dynamicSuggestions[i]
 						ctrlSuggestion.suggestion.visible = true
-						PopulateSuggestion(ctrlSuggestion, suggestion)
+						ctrlSuggestion.suggestion = subSuggestion
+						PopulateSuggestion(ctrlSuggestion, subSuggestion)
 					end
 				end
 			end
