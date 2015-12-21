@@ -33,7 +33,9 @@ end
 local Chili, screen0
 local ebConsole
 local lblContext
-local spSuggestions, scrollSuggestions 
+local spSuggestions, scrollSuggestions
+
+local vsx, vsy
 
 -- history
 local historyFilePath = ".console_history"
@@ -282,7 +284,8 @@ function AreSuggestionsInverted()
 	return y + h > vsy and y - h >= 0
 end
 
-function ResizeUI(vsx, vsy)
+function ResizeUI(_vsx, _vsy)
+	vsx, vsy = _vsx, _vsy
 	ebConsole:SetPos(config.console.x * vsx, config.console.y * vsy, config.console.w * vsx)
 	if not AreSuggestionsInverted() then
 		scrollSuggestions:SetPos(config.console.x * vsx, config.console.y * vsy + ebConsole.height, config.console.w * vsx, config.suggestions.h * vsy)
@@ -451,6 +454,16 @@ function FilterHistory(txt)
 	end
 end
 
+function UpdateTexture()
+	texName = nil
+	local txt = ebConsole.text
+	if txt:sub(1, #"/texture ") == "/texture " then
+		local cmdParts = explode(" ", txt:sub(#"/texture"+1):trimLeft():gsub("%s+", " "))
+		local partialCmd = cmdParts[1]:lower()
+		texName = partialCmd
+	end
+end
+
 function PostParseKey(...)
 	local txt = ebConsole.text
 	if txt:lower() == "/a " or txt:lower() == "a:" then
@@ -493,6 +506,7 @@ function PostParseKey(...)
 			HideSuggestions()
 		end
 	end
+	UpdateTexture()
 	ShowContext()
 end
 
@@ -772,6 +786,7 @@ function UpdateSuggestionDisplay(suggestion, ctrlSuggestion, row)
 end
 
 function UpdateSuggestions()
+	UpdateTexture()
 	local count = 0
 	for _, suggestion in pairs(suggestions) do
 		local ctrlSuggestion = spSuggestions.ctrls[suggestion.id]
@@ -921,6 +936,26 @@ function widget:DrawWorld()
 	if delayGL then
 		delayGL()
 		delayGL = nil
+	end
+end
+
+-- TODO: Make this part of the gl.lua extension, i.e. un-hardcode
+function widget:DrawScreen()
+	if texName then
+		gl.PushMatrix()
+			local texInfo = gl.TextureInfo(texName)
+			if texInfo and texInfo.xsize >= 0 then
+				gl.Texture(texName)
+				-- FIXME: y is inverted in OpenGL (with respect to Chili)
+				-- TODO: Fix magic numbers (make them configurable)
+				gl.TexRect(ebConsole.x-400, ebConsole.y, ebConsole.x, ebConsole.y + 400)
+				local sizeStr = tostring(texInfo.xsize) .. "x" .. tostring(texInfo.ysize)
+				if texInfo.xsize == 0 then
+					gl.Color(1, 0, 0)
+				end
+				gl.Text(sizeStr, ebConsole.x - 240, ebConsole.y - 15, 16)
+			end
+		gl.PopMatrix()
 	end
 end
 
