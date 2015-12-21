@@ -5,10 +5,10 @@ end
 
 -- disable in case there's no liblobby installed
 if not WG.LibLobby or not WG.LibLobby.lobby then
-	Spring.Echo("Chonsole", i18n("liblobby_not_installed", {default = "liblobby is not installed. Lobby support disabled."}))
+	Spring.Log("Chonsole", LOG.WARNING, i18n("liblobby_not_installed", {default = "liblobby is not installed. Lobby support disabled."}))
 	return
 end
-Spring.Echo("Chonsole", i18n("liblobby_is_installed", {default = "liblobby is installed. Lobby support enabled."}))
+Spring.Log("Chonsole", LOG.NOTICE, i18n("liblobby_is_installed", {default = "liblobby is installed. Lobby support enabled."}))
 
 local channelColor = "\204\153\1"
 local consoles = {} -- ID -> name mapping
