@@ -856,46 +856,42 @@ function ProcessText(str)
 	if str:sub(1, 1) == '/' then
 		local command = str:sub(2):trimLeft()
 		local cmdParts = explode(" ", command:gsub("%s+", " "))
-		if #cmdParts == 2 and cmdParts[1]:lower() == "luaui" and cmdParts[2]:lower() == "reload" then
-			Spring.SendLuaRulesMsg('luaui_reload')
-		else
-			for _, cmd in pairs(cmdConfig) do
-				if cmd.command == cmdParts[1]:lower() and cmd.exec ~= nil then
-					if not cmd.cheat or Spring.IsCheatingEnabled() then
-						ExecuteCustomCommand(cmd, command, cmdParts)
-					elseif autoCheat then
-						Spring.SendCommands("cheat 1")
-						table.insert(autoCheatBuffer, {cmd, command, cmdParts})
-					else
-						Spring.Echo("Enable cheats with /cheat or /autocheat")
-						-- NOTICE: Custom commands won't even be attempted if they're supposed to fail
-						-- In case a user tries to manually send such attempts, it will still be stopped in the gadget.
-						-- ExecuteCustomCommand(cmd, command, cmdParts)
-					end
-					return
-				end
-			end
-			
-			local index = suggestionNameMapping[cmdParts[1]]
-			Spring.Echo(command)
-			if index then
-				local suggestion = suggestions[index]
-				if (suggestion.cheat or cmdParts[1]:lower() == "luarules" and cmdParts[2]:lower() == "reload") and not Spring.IsCheatingEnabled() then
-					if autoCheat then
-						Spring.SendCommands("cheat 1")
-						table.insert(autoCheatBuffer, command)
-					else
-						Spring.Echo("Enable cheats with /cheat or /autocheat")
-						-- NOTICE: It will still try to execute the engine command which should fail.
-						Spring.SendCommands(command)
-					end
+		for _, cmd in pairs(cmdConfig) do
+			if cmd.command == cmdParts[1]:lower() and cmd.exec ~= nil then
+				if not cmd.cheat or Spring.IsCheatingEnabled() then
+					ExecuteCustomCommand(cmd, command, cmdParts)
+				elseif autoCheat then
+					Spring.SendCommands("cheat 1")
+					table.insert(autoCheatBuffer, {cmd, command, cmdParts})
 				else
+					Spring.Echo("Enable cheats with /cheat or /autocheat")
+					-- NOTICE: Custom commands won't even be attempted if they're supposed to fail
+					-- In case a user tries to manually send such attempts, it will still be stopped in the gadget.
+					-- ExecuteCustomCommand(cmd, command, cmdParts)
+				end
+				return
+			end
+		end
+		
+		local index = suggestionNameMapping[cmdParts[1]]
+		Spring.Echo(command)
+		if index then
+			local suggestion = suggestions[index]
+			if (suggestion.cheat or cmdParts[1]:lower() == "luarules" and cmdParts[2]:lower() == "reload") and not Spring.IsCheatingEnabled() then
+				if autoCheat then
+					Spring.SendCommands("cheat 1")
+					table.insert(autoCheatBuffer, command)
+				else
+					Spring.Echo("Enable cheats with /cheat or /autocheat")
+					-- NOTICE: It will still try to execute the engine command which should fail.
 					Spring.SendCommands(command)
 				end
 			else
-				Spring.Log("Chonsole", LOG.WARNING, "Unknown command: " .. command)
 				Spring.SendCommands(command)
 			end
+		else
+			Spring.Log("Chonsole", LOG.WARNING, "Unknown command: " .. command)
+			Spring.SendCommands(command)
 		end
 	else
 		local command

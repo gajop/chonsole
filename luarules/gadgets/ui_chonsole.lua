@@ -94,7 +94,7 @@ function ExecuteCustomCommand(cmd, params)
 	currentCmd = ""
 end
 
-function gadget:RecvLuaMsg(msg, playerID)
+function gadget:RecvLuaMsg(msg)
 	local msg_table = explode('|', msg)
 	if msg_table[1] == "chonsole" then
 		local cmd = cmdConfig[msg_table[2]]
@@ -115,10 +115,6 @@ function gadget:RecvLuaMsg(msg, playerID)
 			Spring.Log("Chonsole", LOG.ERROR, "Attempt to execute command that requires cheats while cheating is enabled.")
 		end
 		return
-	end
-	-- send to unsynced and only do it for the player that issued the command
-	if msg_table[1] == 'luaui_reload' then
-		SendToUnsynced('chonsoleUnsyncedReloadLuaUI', tostring(playerID))
 	end
 end
 
@@ -146,16 +142,9 @@ local function ExecuteInUnsynced(_, data)
 	end
 end	
 
-local function ReloadUI(_, playerIDStr)
-	if Spring.GetMyPlayerID() == tonumber(playerIDStr) then
-		Spring.SendCommands("luaui reload")
-	end
-end
-
 function gadget:Initialize()
 	LoadExtensions()
 	gadgetHandler:AddSyncAction('chonsoleUnsynced', ExecuteInUnsynced)
-	gadgetHandler:AddSyncAction('chonsoleUnsyncedReloadLuaUI', ReloadUI)
 end
 
 end
