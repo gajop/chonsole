@@ -19,7 +19,7 @@ Modern chili console for the Spring Engine.
 
 ## Customization
 Basic configuration can be done in the _luaui/config/globals.lua_ file.
-It is possible to set the console size, positive, the color of the suggestion and more.
+It is possible to set console size, position, color of the suggestions and more.
 
 Chonsole can also be extended by creating custom commands and contexes.
 This is done by creating extension files and putting them in the _exts_ folder.
