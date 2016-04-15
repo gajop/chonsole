@@ -6,13 +6,9 @@ commands = {
 		suggestions = function(cmd, cmdParts)
 			local suggestions = {}
 			local param = cmdParts[2]
-			for index, rule in pairs(Spring.GetGameRulesParams()) do
-				if type(rule) == "table" then
-					for name, value in pairs(rule) do
-						if param == nil or param == "" or name:starts(param) then
-							table.insert(suggestions, { command = "/gamerules " .. name, text = name, description = value })
-						end
-					end
+			for name, value in pairs(Spring.GetGameRulesParams()) do
+				if param == nil or param == "" or name:starts(param) then
+					table.insert(suggestions, { command = "/gamerules " .. name, text = name, description = value })
 				end
 			end
 			return suggestions
@@ -38,13 +34,9 @@ commands = {
 			end
 
 			local param = cmdParts[3]
-			for index, rule in pairs(Spring.GetTeamRulesParams(teamID)) do
-				if type(rule) == "table" then
-					for name, value in pairs(rule) do
-						if param == nil or param == "" or name:starts(param) then
-							table.insert(suggestions, { command = "/teamrules " .. name, text = name, description = value })
-						end
-					end
+			for name, value in pairs(Spring.GetTeamRulesParams(teamID)) do
+				if param == nil or param == "" or name:starts(param) then
+					table.insert(suggestions, { command = "/teamrules " .. name, text = name, description = value })
 				end
 			end
 			return suggestions
@@ -73,16 +65,12 @@ commands = {
 			local different = {} -- mapping of unit rules that differ
 			for i, unitID in pairs(units) do
 				local rules = Spring.GetUnitRulesParams(unitID)
-				for index, rule in pairs(rules) do
-					if type(rule) == "table" then
-						for name, value in pairs(rule) do
-							if i == 1 then
-								unitrules[name] = value
-							elseif unitrules[name] ~= value then
-								unitrules[name] = value
-								different[name] = true
-							end
-						end
+				for name, value in pairs(rules) do
+					if i == 1 then
+						unitrules[name] = value
+					elseif unitrules[name] ~= value then
+						unitrules[name] = value
+						different[name] = true
 					end
 				end
 			end
