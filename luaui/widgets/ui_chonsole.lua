@@ -12,22 +12,14 @@ end
 
 VFS.Include(CHONSOLE_FOLDER .. "/luaui/config/globals.lua", nil, VFS.DEF_MODE)
 
+CHONSOLE_MODULES_FOLDER = CHONSOLE_FOLDER .. "/luaui/widgets/modules"
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/util.lua", nil, VFS.DEF_MODE)
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/suggestions.lua", nil, VFS.DEF_MODE)
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/history.lua", nil, VFS.DEF_MODE)
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/extension.lua", nil, VFS.DEF_MODE)
+
 -- context 
 local currentContext
-
-local function explode(div,str)
-	if (div=='') then return 
-		false 
-	end
-	local pos,arr = 0,{}
-	-- for each divider found
-	for st,sp in function() return string.find(str,div,pos,true) end do
-		table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
-		pos = sp + 1 -- Jump past current divider
-	end
-	table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
-	return arr
-end
 
 -- Chili
 local Chili, screen0
@@ -36,14 +28,6 @@ local lblContext
 local spSuggestions, scrollSuggestions
 
 local vsx, vsy
-
--- history
-local historyFilePath = ".console_history"
-local historyFile
-local history = {}
-
-local currentHistory = 0
-local filteredHistory = {}
 
 -- suggestions
 local currentSuggestion = 0
@@ -54,14 +38,17 @@ local filteredSuggestions = {}
 local dynamicSuggestions = {}
 local preText -- used to determine if text changed
 
+-- marker
+local MARKER_KEY = Spring.GetKeyCode("`")
+local markerPos
+local lastPressTime = 0
+local lastSentTime = 0
+local ignoreNextChar = false
+
 -- autocheat
 -- TODO: make it part of the extensions instead
 autoCheat = true
 local autoCheatBuffer = {}
-
--- extensions
-local cmdConfig = {}
-local contextParser = {}
 
 -- Hack for ZK as it normally squelches echos
 -- if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
@@ -76,138 +63,33 @@ local contextParser = {}
 -- 	end
 -- end
 
--- extension API
-function GetCurrentContext()
-	return currentContext
-end
-function ResetCurrentContext()
-	currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
-	ShowContext()
-end
--- this is used to identify the current command used in Sync
-local currentCmd = ""
-function Sync(...)
-	local x = {...}
-	local msg = "chonsole|" .. currentCmd
-	for _, v in pairs(x) do
-		msg = msg .. "|" .. v
-	end
-	Spring.SendLuaRulesMsg(msg)
-end
--- extension API end
-
-function string.trimLeft(str)
-  return str:gsub("^%s*(.-)", "%1")
-end
-
-function string.trim(str)
-  return str:gsub("^%s*(.-)%s*$", "%1")
-end
-
-local function ExtractDir(filepath)
-  filepath = filepath:gsub("\\", "/")
-  local lastChar = filepath:sub(-1)
-  if (lastChar == "/") then
-    filepath = filepath:sub(1,-2)
-  end
-  local pos,b,e,match,init,n = 1,1,1,1,0,0
-  repeat
-    pos,init,n = b,init+1,n+1
-    b,init,match = filepath:find("/",init,true)
-  until (not b)
-  if (n==1) then
-    return filepath
-  else
-    return filepath:sub(1,pos)
-  end
-end
-
-local function ExtractFileName(filepath)
-  filepath = filepath:gsub("\\", "/")
-  local lastChar = filepath:sub(-1)
-  if (lastChar == "/") then
-    filepath = filepath:sub(1,-2)
-  end
-  local pos,b,e,match,init,n = 1,1,1,1,0,0
-  repeat
-    pos,init,n = b,init+1,n+1
-    b,init,match = filepath:find("/",init,true)
-  until (not b)
-  if (n==1) then
-    return filepath
-  else
-    return filepath:sub(pos+1)
-  end
-end
-
 function widget:Initialize()
 	if not WG.Chili then
 		widgetHandler:RemoveWidget(widget)
 	end
 	Chili = WG.Chili
 	screen0 = Chili.Screen0
-	i18n = WG.i18n
-	if not i18n then
-		-- optional support for i18n
-		i18n = function(key, data)
-			data = data or {}
-			return data.default or key
-		end
-	end
-	
-	-- Load global translations
-	if WG.i18n then
-		VFS.Include(CHONSOLE_FOLDER .. "/i18n.lua", nil, VFS.DEF_MODE)
-		if translations ~= nil then
-			i18n.load(translations)
-		end
-	end
-	
-	-- Load extensions
-	for _, f in pairs(VFS.DirList(CHONSOLE_FOLDER .. "/exts", "*", VFS.DEF_MODE)) do
-		-- Load translations first
-		if WG.i18n then
-			local fname = ExtractFileName(f)
-			local fdir = ExtractDir(f)
-			local i18nFile = fdir .. "i18n/" .. fname
-			if VFS.FileExists(i18nFile, nil, VFS.DEF_MODE) then
-				local success, err = pcall(function() VFS.Include(i18nFile, nil, VFS.DEF_MODE) end)
-				if not success then
-					Spring.Log("Chonsole", LOG.ERROR, "Error loading translation file: " .. f)
-					Spring.Log("Chonsole", LOG.ERROR, err)
-				end
-				if translations ~= nil then
-					i18n.load(translations)
-				end
-			end
-		end
-		-- Load extension
-		commands = nil
-		local success, err = pcall(function() VFS.Include(f, nil, VFS.DEF_MODE) end)
-		if not success then
-			Spring.Log("Chonsole", LOG.ERROR, "Error loading extension file: " .. f)
-			Spring.Log("Chonsole", LOG.ERROR, err)
-		else
-			if commands ~= nil then
-				for _, cmd in pairs(commands) do
-					table.insert(cmdConfig, cmd)
-				end
-			end
-			if context ~= nil then
-				for _, parser in pairs(context) do
-					table.insert(contextParser, parser)
-				end
-			end
-		end
-	end
-	
-	Spring.SendCommands("unbindkeyset enter chat")
-	
+
+	InitializeExtensions()
+	LoadTranslations()
+	LoadExtensions()
+
+-- 	Spring.SendCommands("unbindkeyset enter chat")
+	Spring.SendCommands("unbindkeyset Any+` drawinmap")
+	Spring.SendCommands("unbindkeyset Any+\ drawinmap")
+	Spring.SendCommands("unbindkeyset Any+0xa7 drawinmap")
+
 	table.merge(config.console, {
 		parent = screen0,
 		KeyPress = function(...)
 			if not ParseKey(...) then
 				return Chili.EditBox.KeyPress(...)
+			end
+			return true
+		end,
+		TextInput = function(...)
+			if not ParseText(...) then
+				return Chili.EditBox.TextInput(...)
 			end
 			return true
 		end,
@@ -255,14 +137,7 @@ function widget:Initialize()
 	}
 	lblContext:Hide()
 	
-	-- read history
-	pcall(function()
-		for line in io.lines(historyFilePath) do 
-			table.insert(history, line)
-		end
-	end)
-	
-	historyFile = io.open(historyFilePath, "a")
+	LoadHistory()
 	
 	GenerateSuggestions()
 	local vsx, vsy = Spring.GetViewGeometry()
@@ -298,10 +173,11 @@ function widget:ViewResize(vsx, vsy)
 end
 
 function widget:Shutdown()
-	if historyFile then
-		historyFile:close()
-	end
-	Spring.SendCommands("bindkeyset enter chat") --because because.
+	CloseHistory()
+-- 	Spring.SendCommands("bindkeyset enter chat") --because because.
+	Spring.SendCommands("bindkeyset Any+` drawinmap")
+	Spring.SendCommands("bindkeyset Any+\ drawinmap")
+	Spring.SendCommands("bindkeyset Any+0xa7 drawinmap")
 end
 
 function widget:KeyPress(key, mods, ...)
@@ -317,6 +193,54 @@ function widget:KeyPress(key, mods, ...)
 		end
 		ShowContext()
 		return true
+	end
+end
+
+function widget:MousePress(x, y, button)
+	if not Spring.GetKeyState(MARKER_KEY) then
+		return
+	end
+	_, markerPos = Spring.TraceScreenRay(x, y, true, false)
+	if not markerPos then
+		return
+	end
+
+	if button == 1 then
+		local pressTime = os.clock()
+		if not ebConsole.visible and pressTime - lastPressTime < 0.3 then
+			ignoreNextChar = true
+			ebConsole:Show()
+			screen0:FocusControl(ebConsole)
+			currentContext = { display = i18n("label_context", {default="Label:"}), name = "label", persist = true }
+			ShowContext()
+		end
+		lastPressTime = pressTime
+		return true
+	elseif button == 3 then
+		Spring.MarkerErasePosition(markerPos[1], markerPos[2], markerPos[3])
+		return true
+	end
+end
+
+function widget:MouseMove(x, y, dx, dy, button)
+	local newPos
+	_, newPos = Spring.TraceScreenRay(x, y, true, false)
+	if not newPos  then
+		return
+	end
+
+	local time = os.clock()
+	if time - lastSentTime > 0.06 then
+		lastSentTime = time
+	else
+		return
+	end
+
+	if button == 1 then
+		Spring.MarkerAddLine(markerPos[1], markerPos[2], markerPos[3], newPos[1], newPos[2], newPos[3])
+		markerPos = newPos
+	elseif button == 3 then
+		Spring.MarkerErasePosition(newPos[1], newPos[2], newPos[3])
 	end
 end
 
@@ -356,7 +280,16 @@ function SuggestionsDown()
 	end
 end
 
-function ParseKey(ebConsole, key, mods, ...)
+function ParseText(ebConsole, utf8char)
+	if ignoreNextChar then
+		return true
+	end
+end
+
+function ParseKey(ebConsole, key, mods, isRepeat)
+	if ignoreNextChar and not isRepeat then
+		ignoreNextChar = false
+	end
 	if key == Spring.GetKeyCode("enter") or 
 		key == Spring.GetKeyCode("numpad_enter") then
 		if mods.alt then
@@ -379,21 +312,14 @@ function ParseKey(ebConsole, key, mods, ...)
 		if currentSuggestion > 0 or currentSubSuggestion > 0 then
 			SuggestionsUp()
 		else
-			if currentHistory == 0 then
+			if GetCurrentHistory() == 0 then
 				FilterHistory(ebConsole.text)
 			end
-			if #filteredHistory > currentHistory then
-				--and not (currentHistory == 0 and ebConsole.text ~= "") 
-				currentHistory = currentHistory + 1
-				ShowHistoryItem()
-				ShowSuggestions()
-			end
+			NextHistoryItem()
 		end
 	elseif key == Spring.GetKeyCode("down") then
-		if currentHistory > 0 then
-			currentHistory = currentHistory - 1
-			ShowHistoryItem()
-			ShowSuggestions()
+		if GetCurrentHistory() > 0 then
+			PrevHistoryItem()
 		elseif #filteredSuggestions > currentSuggestion or (#dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible) then
 			SuggestionsDown()
 		end
@@ -455,15 +381,6 @@ function ParseKey(ebConsole, key, mods, ...)
 	return true
 end
 
-function FilterHistory(txt)
-	filteredHistory = {}
-	for _, historyItem in pairs(history) do
-		if historyItem:starts(txt) then
-			table.insert(filteredHistory, historyItem)
-		end
-	end
-end
-
 function UpdateTexture()
 	texName = nil
 	local txt = ebConsole.text
@@ -489,7 +406,7 @@ function PostParseKey(...)
 -- 		currentContext = { display = "Command:", name = "command", persist = false }
 	else
 		local res, context = false, nil
-		for _, parser in pairs(contextParser) do
+		for _, parser in pairs(GetContexts()) do
 			local success, err = pcall(function() res, context = parser.parse(txt) end)
 			if not success then
 				Spring.Log("Chonsole", LOG.ERROR, "Error processing custom context: " .. tostring(cmd.command))
@@ -524,7 +441,7 @@ function HideConsole()
 	ebConsole:Hide()
 	screen0:FocusControl(nil)
 	ebConsole:SetText("")
-	currentHistory = 0
+	ResetCurrentHistory()
 	currentSuggestion = 0
 	currentSubSuggestion = 0
 	lblContext:Hide()
@@ -535,10 +452,6 @@ function PostFocusUpdate(...)
 	if not ebConsole.state.focused and ebConsole.visible and ebConsole.keepFocus then
 		delayFocus = true -- FIXME: should really use WG.delay or similar functionality
 	end
-end
-
-function string.starts(String,Start)
-   return string.sub(String,1,string.len(Start))==Start
 end
 
 function ShowContext()
@@ -829,14 +742,8 @@ function HideSuggestions()
 end
 
 function ShowHistoryItem()
-	if currentHistory == 0 then
-		ebConsole:SetText("")
-	end
-	local historyItem = filteredHistory[#filteredHistory - currentHistory + 1]
-	if historyItem ~= nil then
-		ebConsole:SetText(historyItem)
-		ebConsole.cursor = #ebConsole.text + 1
-	end
+	ebConsole:SetText(GetCurrentHistoryItem())
+	ebConsole.cursor = #ebConsole.text + 1
 end
 
 function ExecuteCustomCommand(cmd, command, cmdParts)
@@ -850,15 +757,15 @@ function ExecuteCustomCommand(cmd, command, cmdParts)
 end
 
 function ProcessText(str)
-	if #str:trim() == 0 then
-		return
-	end
+-- 	if #str:trim() == 0 then
+-- 		return
+-- 	end
 	AddHistory(str)
 	-- command
 	if str:sub(1, 1) == '/' then
 		local command = str:sub(2):trimLeft()
 		local cmdParts = explode(" ", command:gsub("%s+", " "))
-		for _, cmd in pairs(cmdConfig) do
+		for _, cmd in pairs(GetExtensions()) do
 			if cmd.command == cmdParts[1]:lower() and cmd.exec ~= nil then
 				if not cmd.cheat or Spring.IsCheatingEnabled() then
 					ExecuteCustomCommand(cmd, command, cmdParts)
@@ -903,9 +810,12 @@ function ProcessText(str)
 			command = "say a:"
 		elseif currentContext.name == "spectators" then
 			command = "say s:"
+		elseif currentContext.name == "label" then
+			Spring.MarkerAddPoint(markerPos[1], markerPos[2], markerPos[3], str)
+			ResetCurrentContext()
 		else
 			local found = false
-			for _, parser in pairs(contextParser) do
+			for _, parser in pairs(GetContexts()) do
 				if currentContext.name == parser.name then
 					local success, err = pcall(function() parser.exec(str, currentContext) end)
 					if not success then
@@ -977,16 +887,6 @@ function widget:Update()
 	end
 end
 
-function AddHistory(str)
-	if #history > 0 and history[#history] == str then
-		return
-	end
-	table.insert(history, str)
-	if historyFile then
-		historyFile:write(str .. "\n")
-	end
-end
-
 function GetCommandList()
 	local commandList = {}
 	
@@ -1016,7 +916,7 @@ function GetCommandList()
 	for _, command in pairs(commandList) do
 		names[command.command:lower()] = command
 	end
-	for _, command in pairs(cmdConfig) do
+	for _, command in pairs(GetExtensions()) do
 		local cmd = names[command.command:lower()]
 		if cmd == nil then
 			table.insert(commandList, command)
