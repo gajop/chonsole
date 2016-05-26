@@ -304,13 +304,15 @@ function widget:Shutdown()
 	Spring.SendCommands("bindkeyset enter chat") --because because.
 end
 
-function widget:KeyPress(key, ...)
+function widget:KeyPress(key, mods, ...)
 	if key == Spring.GetKeyCode("enter") or key == Spring.GetKeyCode("numpad_enter") then
 		if not ebConsole.visible then
 			ebConsole:Show()
 		end
 		screen0:FocusControl(ebConsole)
-		if currentContext == nil or not currentContext.persist then
+		if mods.alt then
+			currentContext = { display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true }
+		elseif mods.ctrl or (currentContext == nil or not currentContext.persist) then
 			currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
 		end
 		ShowContext()
@@ -357,8 +359,20 @@ end
 function ParseKey(ebConsole, key, mods, ...)
 	if key == Spring.GetKeyCode("enter") or 
 		key == Spring.GetKeyCode("numpad_enter") then
-		ProcessText(ebConsole.text)
-		HideConsole()
+		if mods.alt then
+			if currentContext.name == "allies" then
+				currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+			else
+				currentContext = { display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true }
+			end
+			ShowContext()
+		elseif mods.ctrl then
+			currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+			ShowContext()
+		else
+			ProcessText(ebConsole.text)
+			HideConsole()
+		end
 	elseif key == Spring.GetKeyCode("esc") then
 		HideConsole()
 	elseif key == Spring.GetKeyCode("up") then
@@ -464,13 +478,13 @@ function PostParseKey(...)
 	local txt = ebConsole.text
 	if txt:lower() == "/a " or txt:lower() == "a:" then
 		ebConsole:SetText("")
-		currentContext = { display = i18n("allies_context", {default="Allies:"}), name = "allies", persist = true }
+		currentContext = { display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true }
 	elseif txt:lower() == "/s " or txt:lower() == "/say " then
 		ebConsole:SetText("")
 		currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
 	elseif txt:lower() == "/spec " or txt:lower() == "s:" then
 		ebConsole:SetText("")
-		currentContext = { display = i18n("spectators_context", {default="Spectators:"}), name = "spectators", persist = true }
+		currentContext = { display = i18n("spectators_context", {default="Spec:"}), name = "spectators", persist = true }
 -- 	elseif txt:trim():starts("/") and #txt:trim() > 1 then
 -- 		currentContext = { display = "Command:", name = "command", persist = false }
 	else
@@ -515,6 +529,12 @@ function HideConsole()
 	currentSubSuggestion = 0
 	lblContext:Hide()
 	HideSuggestions()
+end
+
+function PostFocusUpdate(...)
+	if not ebConsole.state.focused and ebConsole.visible and ebConsole.keepFocus then
+		delayFocus = true -- FIXME: should really use WG.delay or similar functionality
+	end
 end
 
 function string.starts(String,Start)
@@ -950,6 +970,10 @@ function widget:Update()
 		end
 		autoCheatBuffer = {}
 		Spring.SendCommands("cheat 0")
+	end
+	if delayFocus then
+		delayFocus = false
+		screen0:FocusControl(ebConsole)
 	end
 end
 
