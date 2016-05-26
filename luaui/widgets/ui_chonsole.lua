@@ -5,7 +5,7 @@ function widget:GetInfo()
     author    = "gajop",
     date      = "in the future",
     license   = "GPL-v2",
-    layer     = 0,
+    layer     = 2000,
     enabled   = true,
   }
 end
@@ -64,17 +64,17 @@ local cmdConfig = {}
 local contextParser = {}
 
 -- Hack for ZK as it normally squelches echos
-if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
-	-- FIXME: override Spring.Echo only for this widget
-	local oldEcho = Spring.Echo
-	Spring.Echo = function(...) 
-		x = {...}
-		for i = 1, #x do
-			x[i] = "game_message:" .. tostring(x[i])
-		end
-		oldEcho(unpack(x))
-	end
-end
+-- if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
+-- 	-- FIXME: override Spring.Echo only for this widget
+-- 	local oldEcho = Spring.Echo
+-- 	Spring.Echo = function(...) 
+-- 		x = {...}
+-- 		for i = 1, #x do
+-- 			x[i] = "game_message:" .. tostring(x[i])
+-- 		end
+-- 		oldEcho(unpack(x))
+-- 	end
+-- end
 
 -- extension API
 function GetCurrentContext()
@@ -203,17 +203,8 @@ function widget:Initialize()
 	
 	Spring.SendCommands("unbindkeyset enter chat")
 	
-	local vsx,vsy = Spring.GetViewGeometry()
-	ebConsole = Chili.EditBox:New {
-		width = config.console.w * vsx,
-		height = 40,
+	table.merge(config.console, {
 		parent = screen0,
-		cursorColor = {0.9,0.9,0.9,0.7},
-		font = {
-			size = 22,
--- 			shadow = false,
-			font = config.console.fontFile,
-		},
 		KeyPress = function(...)
 			if not ParseKey(...) then
 				return Chili.EditBox.KeyPress(...)
@@ -223,12 +214,14 @@ function widget:Initialize()
 		OnKeyPress = { function(...)
 			PostParseKey(...)
 		end},
-		OnTextInput =  { function(...)
+		OnTextInput = { function(...)
 			PostParseKey(...)
 		end},
-		borderColor = { 0, 0, 0, 0 },
-		focusColor = { 0, 0, 0, 0 },
-	}
+		OnFocusUpdate = { function(...)
+			PostFocusUpdate(...)
+		end},
+	})
+	ebConsole = Chili.EditBox:New(config.console)
 	ebConsole:Hide()
 	
 	scrollSuggestions = Chili.ScrollPanel:New {
@@ -255,8 +248,8 @@ function widget:Initialize()
 		caption = "",
 		parent = screen0,
 		font = {
-			font = config.console.fontFile,
-			size = 20,
+			font = config.console.font.file,
+			size = config.console.font.size,
 			shadow = true,
 		},
 	}
@@ -272,6 +265,7 @@ function widget:Initialize()
 	historyFile = io.open(historyFilePath, "a")
 	
 	GenerateSuggestions()
+	local vsx, vsy = Spring.GetViewGeometry()
 	ResizeUI(vsx, vsy)
 end
 
@@ -287,15 +281,16 @@ end
 
 function ResizeUI(_vsx, _vsy)
 	vsx, vsy = _vsx, _vsy
-	ebConsole:SetPos(config.console.x * vsx, config.console.y * vsy, config.console.w * vsx)
 	if not AreSuggestionsInverted() then
-		scrollSuggestions:SetPos(config.console.x * vsx, config.console.y * vsy + ebConsole.height, config.console.w * vsx, config.suggestions.h * vsy)
+		scrollSuggestions:SetPos(ebConsole.x, ebConsole.y + ebConsole.height + config.suggestions.y, ebConsole.width, ebConsole.height * vsy)
 	else
 		local sh = config.suggestions.h * vsy
-		scrollSuggestions:SetPos(config.console.x * vsx, config.console.y * vsy - sh, config.console.w * vsx, sh)
+		scrollSuggestions:SetPos(ebConsole.x, ebConsole.y - sh - config.suggestions.y, ebConsole.width, sh)
 	end
-	spSuggestions:SetPos(nil, nil, config.console.w * vsx, config.suggestions.h * vsy)
-	lblContext:SetPos(config.console.x * vsx - lblContext.width - 6, config.console.y * vsy + 7)
+	spSuggestions:SetPos(nil, nil, config.console.width, config.suggestions.h * vsy)
+	--FIXME: either use config or better autodetection of these values
+	--lblContext:SetPos(ebConsole.x - lblContext.width - 6, ebConsole.y + 7)
+	lblContext:SetPos(ebConsole.x - lblContext.width - 10, ebConsole.y + 6)
 end
 
 function widget:ViewResize(vsx, vsy)
@@ -501,7 +496,7 @@ function PostParseKey(...)
 		currentSuggestion = 0
 		currentSubSuggestion = 0
 		UpdateSuggestions()
-		if #txt > 0 then
+		if #txt > 0 and txt:sub(1, 1) == "/" then
 			ShowSuggestions()
 		else
 			HideSuggestions()

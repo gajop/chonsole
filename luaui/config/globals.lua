@@ -10,14 +10,23 @@ local yellow = { 1, 1, 0, 1 }
 -- General
 config = {
 	console = {
-		x = 0.26,
-		y = 0.25,
-		w = 0.5,
-		--fontFile = "LuaUI/fonts/dejavu-sans-mono/DejaVuSansMono.ttf",
+		x = "51.7%",
+		bottom = 0,
+		width = "20.5%",
+		height = 36,
+		font = {
+-- 			file = "LuaUI/fonts/dejavu-sans-mono/DejaVuSansMono.ttf",
+			size = 22,
+		},
+		cursorColor = { 0.9, 0.9, 0.9, 0.7 },
+		borderColor = { 0, 0, 0, 0 },
+		focusColor = { 0, 0, 0, 0 },
+		keepFocus = true,
 	},
 	suggestions = {
-		h = 0.4,
-		inverted = false, -- if set to true, it will appear above the console
+		h = 0.4, -- FIXME: use chili-style positions
+		y = 150, -- distance from input editbox in absolute values
+		inverted = true, -- if set to true, it will appear above the console
 		fontSize = 16,
 		padding = 4,
 		pageUpFactor = 10,
