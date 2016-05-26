@@ -1,5 +1,6 @@
 local cmdConfig = {}
 local contextParser = {}
+local currentContext
 
 -- extension API
 function GetCurrentContext()
@@ -8,6 +9,9 @@ end
 function ResetCurrentContext()
 	currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
 	ShowContext()
+end
+function SetContext(context)
+	currentContext = context
 end
 
 -- this is used to identify the current command used in Sync

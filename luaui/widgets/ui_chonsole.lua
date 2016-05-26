@@ -12,38 +12,11 @@ end
 
 VFS.Include(CHONSOLE_FOLDER .. "/luaui/config/globals.lua", nil, VFS.DEF_MODE)
 
-CHONSOLE_MODULES_FOLDER = CHONSOLE_FOLDER .. "/luaui/widgets/modules"
-VFS.Include(CHONSOLE_MODULES_FOLDER .. "/util.lua", nil, VFS.DEF_MODE)
-VFS.Include(CHONSOLE_MODULES_FOLDER .. "/suggestions.lua", nil, VFS.DEF_MODE)
-VFS.Include(CHONSOLE_MODULES_FOLDER .. "/history.lua", nil, VFS.DEF_MODE)
-VFS.Include(CHONSOLE_MODULES_FOLDER .. "/extension.lua", nil, VFS.DEF_MODE)
-
--- context 
-local currentContext
-
 -- Chili
-local Chili, screen0
-local ebConsole
+-- local Chili, screen0
+-- local ebConsole
 local lblContext
-local spSuggestions, scrollSuggestions
-
-local vsx, vsy
-
--- suggestions
-local currentSuggestion = 0
-local currentSubSuggestion = 0
-local suggestions = {}
-local suggestionNameMapping = {} -- name -> index in "suggestions" table
-local filteredSuggestions = {}
-local dynamicSuggestions = {}
-local preText -- used to determine if text changed
-
--- marker
-local MARKER_KEY = Spring.GetKeyCode("`")
-local markerPos
-local lastPressTime = 0
-local lastSentTime = 0
-local ignoreNextChar = false
+-- local spSuggestions, scrollSuggestions
 
 -- autocheat
 -- TODO: make it part of the extensions instead
@@ -63,6 +36,13 @@ local autoCheatBuffer = {}
 -- 	end
 -- end
 
+CHONSOLE_MODULES_FOLDER = CHONSOLE_FOLDER .. "/luaui/widgets/modules"
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/extension.lua", nil, VFS.DEF_MODE)
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/history.lua", nil, VFS.DEF_MODE)
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/marker.lua", nil, VFS.DEF_MODE)
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/suggestions.lua", nil, VFS.DEF_MODE)
+VFS.Include(CHONSOLE_MODULES_FOLDER .. "/util.lua", nil, VFS.DEF_MODE)
+
 function widget:Initialize()
 	if not WG.Chili then
 		widgetHandler:RemoveWidget(widget)
@@ -74,10 +54,7 @@ function widget:Initialize()
 	LoadTranslations()
 	LoadExtensions()
 
--- 	Spring.SendCommands("unbindkeyset enter chat")
-	Spring.SendCommands("unbindkeyset Any+` drawinmap")
-	Spring.SendCommands("unbindkeyset Any+\ drawinmap")
-	Spring.SendCommands("unbindkeyset Any+0xa7 drawinmap")
+	StartMarker()
 
 	table.merge(config.console, {
 		parent = screen0,
@@ -144,18 +121,7 @@ function widget:Initialize()
 	ResizeUI(vsx, vsy)
 end
 
-function AreSuggestionsInverted()
-	if config.suggestions.inverted then
-		return true
-	end
-	local _, vsy = Spring.GetViewGeometry()
-	local y = config.console.y * vsy + ebConsole.height
-	local h = config.suggestions.h * vsy
-	return y + h > vsy and y - h >= 0
-end
-
-function ResizeUI(_vsx, _vsy)
-	vsx, vsy = _vsx, _vsy
+function ResizeUI(vsx, vsy)
 	if not AreSuggestionsInverted() then
 		scrollSuggestions:SetPos(ebConsole.x, ebConsole.y + ebConsole.height + config.suggestions.y, ebConsole.width, ebConsole.height * vsy)
 	else
@@ -174,10 +140,7 @@ end
 
 function widget:Shutdown()
 	CloseHistory()
--- 	Spring.SendCommands("bindkeyset enter chat") --because because.
-	Spring.SendCommands("bindkeyset Any+` drawinmap")
-	Spring.SendCommands("bindkeyset Any+\ drawinmap")
-	Spring.SendCommands("bindkeyset Any+0xa7 drawinmap")
+	CloseMarker()
 end
 
 function widget:KeyPress(key, mods, ...)
@@ -187,9 +150,9 @@ function widget:KeyPress(key, mods, ...)
 		end
 		screen0:FocusControl(ebConsole)
 		if mods.alt then
-			currentContext = { display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true }
-		elseif mods.ctrl or (currentContext == nil or not currentContext.persist) then
-			currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+			SetContext({ display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true })
+		elseif mods.ctrl or (GetCurrentContext() == nil or not GetCurrentContext().persist) then
+			SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
 		end
 		ShowContext()
 		return true
@@ -197,110 +160,30 @@ function widget:KeyPress(key, mods, ...)
 end
 
 function widget:MousePress(x, y, button)
-	if not Spring.GetKeyState(MARKER_KEY) then
-		return
-	end
-	_, markerPos = Spring.TraceScreenRay(x, y, true, false)
-	if not markerPos then
-		return
-	end
-
-	if button == 1 then
-		local pressTime = os.clock()
-		if not ebConsole.visible and pressTime - lastPressTime < 0.3 then
-			ignoreNextChar = true
-			ebConsole:Show()
-			screen0:FocusControl(ebConsole)
-			currentContext = { display = i18n("label_context", {default="Label:"}), name = "label", persist = true }
-			ShowContext()
-		end
-		lastPressTime = pressTime
-		return true
-	elseif button == 3 then
-		Spring.MarkerErasePosition(markerPos[1], markerPos[2], markerPos[3])
-		return true
-	end
+	return MarkerMousePress(x, y, button)
 end
 
 function widget:MouseMove(x, y, dx, dy, button)
-	local newPos
-	_, newPos = Spring.TraceScreenRay(x, y, true, false)
-	if not newPos  then
-		return
-	end
-
-	local time = os.clock()
-	if time - lastSentTime > 0.06 then
-		lastSentTime = time
-	else
-		return
-	end
-
-	if button == 1 then
-		Spring.MarkerAddLine(markerPos[1], markerPos[2], markerPos[3], newPos[1], newPos[2], newPos[3])
-		markerPos = newPos
-	elseif button == 3 then
-		Spring.MarkerErasePosition(newPos[1], newPos[2], newPos[3])
-	end
-end
-
-function SuggestionsUp()
-	if currentSubSuggestion > 1 then
-		currentSubSuggestion = currentSubSuggestion - 1
-		local suggestion = dynamicSuggestions[currentSubSuggestion].suggestion
-		ebConsole:SetText(suggestion.command)
-		ebConsole.cursor = #ebConsole.text + 1
-		UpdateSuggestions()
-	elseif currentSuggestion > 1 then
-		currentSuggestion = currentSuggestion - 1
--- 			if currentSuggestion > 0 then
-		local id = filteredSuggestions[currentSuggestion]
-		ebConsole:SetText(suggestions[id].text)
-		ebConsole.cursor = #ebConsole.text + 1
-		UpdateSuggestions()
--- 			end
-	end
-end
-
-function SuggestionsDown()
-	if #filteredSuggestions == 1 and #dynamicSuggestions ~= 0 then
-		if #dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible then
-			currentSubSuggestion = currentSubSuggestion + 1
-			local suggestion = dynamicSuggestions[currentSubSuggestion].suggestion
-			ebConsole:SetText(suggestion.command)
-			ebConsole.cursor = #ebConsole.text + 1
-			UpdateSuggestions()
-		end
-	elseif #filteredSuggestions > currentSuggestion then
-		currentSuggestion = currentSuggestion + 1
-		local id = filteredSuggestions[currentSuggestion]
-		ebConsole:SetText(suggestions[id].text)
-		ebConsole.cursor = #ebConsole.text + 1
-		UpdateSuggestions()
-	end
+	return MarkerMouseMove(x, y, dx, dy, button)
 end
 
 function ParseText(ebConsole, utf8char)
-	if ignoreNextChar then
-		return true
-	end
+	return MarkerParseText(utf8char)
 end
 
 function ParseKey(ebConsole, key, mods, isRepeat)
-	if ignoreNextChar and not isRepeat then
-		ignoreNextChar = false
-	end
+	MarkerParseKey(key, mods, isRepeat)
 	if key == Spring.GetKeyCode("enter") or 
 		key == Spring.GetKeyCode("numpad_enter") then
 		if mods.alt then
-			if currentContext.name == "allies" then
-				currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+			if GetCurrentContext().name == "allies" then
+				SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
 			else
-				currentContext = { display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true }
+				SetContext({ display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true })
 			end
 			ShowContext()
 		elseif mods.ctrl then
-			currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+			SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
 			ShowContext()
 		else
 			ProcessText(ebConsole.text)
@@ -309,9 +192,7 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 	elseif key == Spring.GetKeyCode("esc") then
 		HideConsole()
 	elseif key == Spring.GetKeyCode("up") then
-		if currentSuggestion > 0 or currentSubSuggestion > 0 then
-			SuggestionsUp()
-		else
+		if not SuggestionsUp() then
 			if GetCurrentHistory() == 0 then
 				FilterHistory(ebConsole.text)
 			end
@@ -320,48 +201,11 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 	elseif key == Spring.GetKeyCode("down") then
 		if GetCurrentHistory() > 0 then
 			PrevHistoryItem()
-		elseif #filteredSuggestions > currentSuggestion or (#dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible) then
+		else
 			SuggestionsDown()
 		end
 	elseif key == Spring.GetKeyCode("tab") then
-		if #filteredSuggestions == 0 then
-			return true
-		end
-		local nextSuggestion, nextSubSuggestion
-		if #filteredSuggestions > currentSuggestion then
-			nextSuggestion = currentSuggestion + 1
-		else
-			nextSuggestion = 1
-		end
-		if #dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible then
-			nextSubSuggestion = currentSubSuggestion + 1
-		else
-			nextSubSuggestion = 1
-		end
-		if #filteredSuggestions == 1 and #dynamicSuggestions ~= 0 and #suggestions[filteredSuggestions[1]].text <= #ebConsole.text then
-			if #dynamicSuggestions[nextSubSuggestion].suggestion.command >= #ebConsole.text or currentSubSuggestion ~= 0 then
-				currentSubSuggestion = nextSubSuggestion
-				local suggestion = dynamicSuggestions[currentSubSuggestion].suggestion
-				if #dynamicSuggestions > 1 then
-					ebConsole:SetText(suggestion.command)
-				else
-					ebConsole:SetText(suggestion.command .. " ")
-				end
-				ebConsole.cursor = #ebConsole.text + 1
-				UpdateSuggestions()
-			end
-		elseif #suggestions[filteredSuggestions[nextSuggestion]].text >= #ebConsole.text or currentSuggestion ~= 0 then
-			currentSuggestion = nextSuggestion
-			local id = filteredSuggestions[currentSuggestion]
-			if #filteredSuggestions > 1 then
-				ebConsole:SetText(suggestions[id].text)
-			else
-				-- this will also select it if there's only one option
-				ebConsole:SetText(suggestions[id].text .. " ")
-			end
-			ebConsole.cursor = #ebConsole.text + 1
-			UpdateSuggestions()
-		end
+		SuggestionsTab()
 	elseif key == Spring.GetKeyCode("pageup") then
 		for i = 1, config.suggestions.pageUpFactor do
 			if currentSuggestion > 0 or currentSubSuggestion > 0 then
@@ -370,9 +214,7 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 		end
 	elseif key == Spring.GetKeyCode("pagedown") then
 		for i = 1, config.suggestions.pageDownFactor do
-			if #filteredSuggestions > currentSuggestion or (#dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible) then
-				SuggestionsDown()
-			end
+			SuggestionsDown()
 		end
 	else
 		preText = ebConsole.text
@@ -395,15 +237,15 @@ function PostParseKey(...)
 	local txt = ebConsole.text
 	if txt:lower() == "/a " or txt:lower() == "a:" then
 		ebConsole:SetText("")
-		currentContext = { display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true }
+		SetContext({ display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true })
 	elseif txt:lower() == "/s " or txt:lower() == "/say " then
 		ebConsole:SetText("")
-		currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+		SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
 	elseif txt:lower() == "/spec " or txt:lower() == "s:" then
 		ebConsole:SetText("")
-		currentContext = { display = i18n("spectators_context", {default="Spec:"}), name = "spectators", persist = true }
+		SetContext({ display = i18n("spectators_context", {default="Spec:"}), name = "spectators", persist = true })
 -- 	elseif txt:trim():starts("/") and #txt:trim() > 1 then
--- 		currentContext = { display = "Command:", name = "command", persist = false }
+-- 		GetCurrentContext() = { display = "Command:", name = "command", persist = false }
 	else
 		local res, context = false, nil
 		for _, parser in pairs(GetContexts()) do
@@ -414,13 +256,13 @@ function PostParseKey(...)
 			end
 			if res then
 				ebConsole:SetText("")
-				currentContext = context
+				SetContext(context)
 				break
 			end
 		end
 		
-		if not res and not currentContext.persist then
-			currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+		if not res and not GetCurrentContext().persist then
+			SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
 		end
 	end
 	if preText ~= txt then -- only update suggestions if text changed
@@ -458,287 +300,7 @@ function ShowContext()
 	if not lblContext.visible then
 		lblContext:Show()
 	end
-	lblContext:SetCaption(currentContext.display)
-end
-
-function MakeSuggestion(suggestion)
-	local ctrlSuggestion = Chili.Button:New {
-		x = 0,
-		minHeight = config.suggestions.fontSize + config.suggestions.padding,
-		autosize = true,
-		width = "100%",
-		resizable = false,
-		draggable = false,
-		padding  = {0,0,0,0},
-		--focusColor = { 0, 0, 0, 0 },
-		caption = "",
-	}
-	local lblSuggestion = Chili.Label:New {
-		x = 0,
-		caption = "",
-		autosize = true,
-		padding = {0, 0, 0, 0},
-		font = {
-			size = config.suggestions.fontSize,
--- 			shadow = false,
-			color = config.suggestions.suggestionColor,
-			font = config.console.fontFile,
-		},
-		parent = ctrlSuggestion,
-	}
-	ctrlSuggestion.lblSuggestion = lblSuggestion
-	local lblDescription = Chili.Label:New {
-		x = 300,
-		autosize = true,
-		caption = "",
-		padding = {0, 0, 0, 0},
-		font = {
-			size = config.suggestions.fontSize,
--- 			shadow = false,
-			color = config.suggestions.descriptionColor,
-			font = config.console.fontFile,
-		},
-		parent = ctrlSuggestion,
-	}
-	ctrlSuggestion.lblDescription = lblDescription
-	if suggestion.cheat then 
-		local lblCheat = Chili.Label:New {
-			width = 100,
-			x = 200,
-			caption = i18n("cheat_command", {default="(cheat)"}),
-			align = "right",
-			padding = {0, 0, 0, 0},
-			font = {
-				size = config.suggestions.fontSize,
--- 				shadow = false,
-				font = config.console.fontFile,
-			},
-			parent = ctrlSuggestion,
-		}
-		ctrlSuggestion.lblCheat = lblCheat
-	end
-	return ctrlSuggestion
-end
-
-function PopulateSuggestion(ctrlSuggestion, suggestion)
-	ctrlSuggestion.id = suggestion.id
-	ctrlSuggestion.OnClick = {
-		function()
-			local txt = suggestion.text
-			if suggestion.dynId ~= nil then
-				txt = suggestions[filteredSuggestions[1]].text .. " " .. txt
-			end
-			ebConsole:SetText(txt)
-			ebConsole.cursor = #ebConsole.text + 1
-			screen0:FocusControl(ebConsole)
-			UpdateSuggestions()
-		end,
-	}
-	ctrlSuggestion.lblSuggestion:SetCaption(suggestion.text)
-	ctrlSuggestion.lblDescription:SetCaption(suggestion.description or "")
-	return ctrlSuggestion
-end
-
-function CreateSuggestion(suggestion)
-	return PopulateSuggestion(MakeSuggestion(suggestion), suggestion)
-end
-
-function GenerateSuggestions()
-	suggestions = GetCommandList()
-	for i, suggestion in pairs(suggestions) do
-		suggestion.text = "/" .. suggestion.command:lower()
-		suggestion.visible = false
-		suggestion.id = i
-		suggestionNameMapping[suggestion.command:lower()] = i
-	end
-	spSuggestions.ctrls = {}
-	for _, suggestion in pairs(suggestions) do
-		local ctrlSuggestion = CreateSuggestion(suggestion)
-		spSuggestions.ctrls[suggestion.id] = ctrlSuggestion
-		spSuggestions:AddChild(ctrlSuggestion)
-	end
-	local fakeCtrl = Chili.Button:New {
-		x = 0,
-		y = (#suggestions - 1) * (config.suggestions.fontSize + config.suggestions.padding),
-		height = (config.suggestions.fontSize + config.suggestions.padding),
-		autosize = true,
-		--width = "100%",
-		resizable = false,
-		draggable = false,
-		padding  = {0,0,0,0},
-		focusColor = { 0, 0, 0, 0 },
-		backgroundColor = { 0, 0, 0, 0 },
-		id = -1,
-		caption = "",
-	}
-	-- FIXME: fake control because chili has bugs
-	spSuggestions:AddChild(fakeCtrl)
-	spSuggestions.fakeCtrl = fakeCtrl
-end
-
-function CleanupSuggestions()
-	-- cleanup dynamic suggestions
-	for _, dynamicSuggestion in pairs(dynamicSuggestions) do
-		dynamicSuggestion.suggestion.visible = false
-	end
-
-	filteredSuggestions = {}
-	
-	for _, suggestion in pairs(suggestions) do
-		suggestion.visible = false
-	end
-end
-
-function FilterSuggestions(txt)
-	CleanupSuggestions()
-	
-	local count = 0
-	if txt:sub(1, 1) == "/" then
-		local cmdParts = explode(" ", txt:sub(2):trimLeft():gsub("%s+", " "))
-		local partialCmd = cmdParts[1]:lower()
-		local addedCommands = {}
-		for _, suggestion in pairs(suggestions) do
-			local cmdName = suggestion.command:lower()
-			local matched
-			if #cmdParts > 1 then 
-				matched = cmdName == partialCmd
-			else
-				matched = cmdName:starts(partialCmd)
-			end
-			if matched and not addedCommands[suggestion.id] then
-				suggestion.visible = true
-				count = count + 1
-				table.insert(filteredSuggestions, suggestion.id)
-				addedCommands[suggestion.id] = true
-			end
-		end
--- 		for _, command in pairs(commandList) do
--- 			if command.command:lower():find(partialCmd:lower()) and not addedCommands[command.command] then
--- 				table.insert(suggestions, { command = "/" .. command.command, text = command.command, description = command.description, cheat = command.cheat })
--- 				addedCommands[command.command] = true
--- 			end
--- 		end
-
-		-- generate sub suggestions when only one field is visible
-		if count == 1 then
-			local suggestion = suggestions[filteredSuggestions[1]]
-			if suggestion.suggestions ~= nil then
-				local subSuggestions
-				local success, err = pcall(function() 
-					subSuggestions = suggestion.suggestions(txt, cmdParts)
-				end)
-				if not success then
-					Spring.Log("Chonsole", LOG.ERROR, "Error obtaining suggestions for command: " .. tostring(suggestion.command))
-					Spring.Log("Chonsole", LOG.ERROR, err)
-					return
-				end
-				for i, subSuggestion in pairs(subSuggestions) do
-					if subSuggestion.visible == nil then
-						subSuggestion.visible = true
-					end
-					subSuggestion.dynId = #dynamicSuggestions + 1
-					if i > #dynamicSuggestions then
-						local ctrlSuggestion = CreateSuggestion(subSuggestion)
-						ctrlSuggestion.suggestion = subSuggestion
-						table.insert(dynamicSuggestions, ctrlSuggestion)
-						spSuggestions:AddChild(ctrlSuggestion)
-					else
-						local ctrlSuggestion = dynamicSuggestions[i]
-						ctrlSuggestion.suggestion.visible = true
-						ctrlSuggestion.suggestion = subSuggestion
-						PopulateSuggestion(ctrlSuggestion, subSuggestion)
-					end
-				end
-			end
-		end
-	end
-end
-
-function ShowSuggestions()
-	if not scrollSuggestions.visible then
-		scrollSuggestions:Show()
-	end
-	
-	FilterSuggestions(ebConsole.text)
-	UpdateSuggestions()	
-end
-
-function UpdateSuggestionDisplay(suggestion, ctrlSuggestion, row)
-	if suggestion.visible then
-		ctrlSuggestion.y = (row - 1) * (config.suggestions.fontSize + config.suggestions.padding)
-
-		if not ctrlSuggestion.visible then
-			ctrlSuggestion:Show()
-		end
-
-		if currentSubSuggestion == 0 and suggestion.id ~= nil and suggestion.id == filteredSuggestions[currentSuggestion] then
-			ctrlSuggestion.backgroundColor = config.suggestions.suggestionColor
-		elseif suggestion.dynId ~= nil and suggestion.dynId == currentSubSuggestion then
-			ctrlSuggestion.backgroundColor = config.suggestions.suggestionColor
-		elseif suggestion.id == nil then
- 			ctrlSuggestion.backgroundColor = config.suggestions.subsuggestionColor
-		else
-			ctrlSuggestion.backgroundColor = { 0, 0, 0, 0 }
-		end
-
-		if suggestion.cheat then
-			local cheatColor
-			if Spring.IsCheatingEnabled() then
-				cheatColor = config.suggestions.cheatEnabledColor
-			elseif autoCheat then
-				cheatColor = config.suggestions.autoCheatColor
-			else
-				cheatColor = config.suggestions.cheatDisabledColor
-			end
-			ctrlSuggestion.lblCheat.font.color = cheatColor
-			ctrlSuggestion.lblCheat:Invalidate()
-		end
-
-		ctrlSuggestion:Invalidate()
-	elseif ctrlSuggestion.visible then
-		ctrlSuggestion:Hide()
-	end
-end
-
-function UpdateSuggestions()
-	UpdateTexture()
-	local count = 0
-	for _, suggestion in pairs(suggestions) do
-		local ctrlSuggestion = spSuggestions.ctrls[suggestion.id]
-		if suggestion.visible then
-			count = count + 1
-		end
-		UpdateSuggestionDisplay(suggestion, ctrlSuggestion, count)
-	end
-	for _, dynamicSuggestion in pairs(dynamicSuggestions) do
-		count = count + 1
-		dynamicSuggestion.x = 50
-		UpdateSuggestionDisplay(dynamicSuggestion.suggestion, dynamicSuggestion, count)
-	end
-
-	-- FIXME: magic numbers and fake controls ^_^
-	spSuggestions.fakeCtrl.y = (count-1+1) * (config.suggestions.fontSize + config.suggestions.padding)
-
-	if currentSuggestion ~= 0 and scrollSuggestions.visible then
-		local suggestion = suggestions[filteredSuggestions[currentSuggestion]]
-		local selY = spSuggestions.ctrls[suggestion.id].y
-		scrollSuggestions:SetScrollPos(0, selY, true, false)
-	end
-	if count > 0 and not scrollSuggestions.visible then
-		scrollSuggestions:RequestUpdate()
-		scrollSuggestions:Show()
-	elseif count == 0 and scrollSuggestions.visible then
-		scrollSuggestions:Hide()
-	end
-
-	spSuggestions:Invalidate()
-end
-
-function HideSuggestions()
-	CleanupSuggestions()
-	if scrollSuggestions.visible then
-		scrollSuggestions:Hide()
-	end
+	lblContext:SetCaption(GetCurrentContext().display)
 end
 
 function ShowHistoryItem()
@@ -782,10 +344,9 @@ function ProcessText(str)
 			end
 		end
 		
-		local index = suggestionNameMapping[cmdParts[1]]
 		Spring.Echo(command)
-		if index then
-			local suggestion = suggestions[index]
+		local suggestion = GetSuggestionIndexByName(cmdParts[1])
+		if suggestion then
 			if (suggestion.cheat or cmdParts[1]:lower() == "luarules" and cmdParts[2]:lower() == "reload") and not Spring.IsCheatingEnabled() then
 				if autoCheat then
 					Spring.SendCommands("cheat 1")
@@ -804,20 +365,20 @@ function ProcessText(str)
 		end
 	else
 		local command
-		if currentContext.name == "say" then
+		if GetCurrentContext().name == "say" then
 			command = "say "
-		elseif currentContext.name == "allies" then
+		elseif GetCurrentContext().name == "allies" then
 			command = "say a:"
-		elseif currentContext.name == "spectators" then
+		elseif GetCurrentContext().name == "spectators" then
 			command = "say s:"
-		elseif currentContext.name == "label" then
-			Spring.MarkerAddPoint(markerPos[1], markerPos[2], markerPos[3], str)
+		elseif GetCurrentContext().name == "label" then
+			AddMarker(str)
 			ResetCurrentContext()
 		else
 			local found = false
 			for _, parser in pairs(GetContexts()) do
-				if currentContext.name == parser.name then
-					local success, err = pcall(function() parser.exec(str, currentContext) end)
+				if GetCurrentContext().name == parser.name then
+					local success, err = pcall(function() parser.exec(str, GetCurrentContext()) end)
 					if not success then
 						Spring.Log("Chonsole", LOG.ERROR, "Error executing custom context: " .. tostring(cmd.command))
 						Spring.Log("Chonsole", LOG.ERROR, err)
@@ -828,8 +389,8 @@ function ProcessText(str)
 			end
 			
 			if not found then
-				Spring.Echo(currentContext)
-				Spring.Echo("Unexpected context " .. currentContext.name)
+				Spring.Echo(GetCurrentContext())
+				Spring.Echo("Unexpected context " .. GetCurrentContext().name)
 				command = "say "
 			end
 		end
@@ -885,47 +446,4 @@ function widget:Update()
 		delayFocus = false
 		screen0:FocusControl(ebConsole)
 	end
-end
-
-function GetCommandList()
-	local commandList = {}
-	
-	if Spring.GetUICommands then
-		commandList = Spring.GetUICommands()
-	else
-		Spring.Log("Chonsole", LOG.ERROR, "Using unsupported engine: no Spring.GetUICommands function")
-	end
-	
-	local names = {}
-	for _, command in pairs(commandList) do
-		if command.synced then
-			names[command.command:lower()] = true
-		end
-	end
-	-- removed unsynced commands
-	for i = #commandList, 1, -1 do
-		local cmd = commandList[i]
-		if not cmd.synced and names[cmd.command:lower()] then
-			Spring.Log("Chonsole", LOG.NOTICE, "Removed duplicate command: ", cmd.command, cmd.description)
-			table.remove(commandList, i)
-		end
-	end
-	
-	-- create a name mapping and merge any existing commands
-	names = {}
-	for _, command in pairs(commandList) do
-		names[command.command:lower()] = command
-	end
-	for _, command in pairs(GetExtensions()) do
-		local cmd = names[command.command:lower()]
-		if cmd == nil then
-			table.insert(commandList, command)
-		else
-			table.merge(cmd, command)
-		end
-	end
-	table.sort(commandList, function(cmd1, cmd2) 
-		return cmd1.command:lower() < cmd2.command:lower() 
-	end)
-	return commandList
 end
