@@ -11,7 +11,8 @@ local yellow = { 1, 1, 0, 1 }
 config = {
 	console = {
 		x = "51.7%",
-		bottom = 0,
+		y = "20%",
+-- 		bottom = 0,
 		width = "20.5%",
 		height = 36,
 		font = {
@@ -24,11 +25,14 @@ config = {
 		keepFocus = true,
 	},
 	suggestions = {
-		h = 0.4, -- FIXME: use chili-style positions
-		y = 150, -- distance from input editbox in absolute values
-		inverted = true, -- if set to true, it will appear above the console
-		fontSize = 16,
-		padding = 4,
+		height = "40%",
+		offsetY = 0,
+		--offsetY = 150, -- distance from input editbox in absolute values
+		inverted = false, -- if set to true, it will appear above the console
+		font = {
+			size = 16,
+		},
+		suggestionPadding = 4,
 		pageUpFactor = 10,
 		pageDownFactor = 10,
 
@@ -40,5 +44,8 @@ config = {
 		cheatEnabledColor = green,
 		cheatDisabledColor = red,
 		autoCheatColor = yellow,
+	},
+	chat = {
+		showPrefix = true,
 	},
 }

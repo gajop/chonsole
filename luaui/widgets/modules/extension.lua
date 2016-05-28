@@ -1,13 +1,20 @@
 local cmdConfig = {}
 local contextParser = {}
-local currentContext
+local contextNameMapping = {}
+local currentContext, defaultContext
 
 -- extension API
+function GetDefaultContext()
+	return defaultContext
+end
+function SetDefaultContext(context)
+	defaultContext = context
+end
 function GetCurrentContext()
 	return currentContext
 end
 function ResetCurrentContext()
-	currentContext = { display = i18n("say_context", {default="Say:"}), name = "say", persist = true }
+	currentContext = defaultContext
 	ShowContext()
 end
 function SetContext(context)
@@ -86,6 +93,10 @@ function LoadExtensions()
 			end
 		end
 	end
+
+	for _, context in pairs(contextParser) do
+		contextNameMapping[context.name] = context
+	end
 end
 
 function GetExtensions()
@@ -94,4 +105,30 @@ end
 
 function GetContexts()
 	return contextParser
+end
+
+function ExecuteCurrentContext(str)
+	local context = contextNameMapping[currentContext.name]
+	if not context then
+		return false
+	end
+	local success, err = pcall(function() context.exec(str, currentContext) end)
+	if not success then
+		Spring.Log("Chonsole", LOG.ERROR, "Error executing custom context: " .. tostring(str))
+		Spring.Log("Chonsole", LOG.ERROR, err)
+	end
+	return true
+end
+
+function EnterCurrentContext(str)
+	local context = contextNameMapping[currentContext.name]
+	if not context or context.enter == nil then
+		return false
+	end
+	local success, err = pcall(function() context.enter(str, currentContext) end)
+	if not success then
+		Spring.Log("Chonsole", LOG.ERROR, "Error entering custom context: " .. tostring(context.name))
+		Spring.Log("Chonsole", LOG.ERROR, err)
+	end
+	return true
 end

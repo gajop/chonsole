@@ -19,7 +19,7 @@ end
 function MakeSuggestion(suggestion)
 	local ctrlSuggestion = Chili.Button:New {
 		x = 0,
-		minHeight = config.suggestions.fontSize + config.suggestions.padding,
+		minHeight = config.suggestions.font.size + config.suggestions.suggestionPadding,
 		autosize = true,
 		width = "100%",
 		resizable = false,
@@ -34,10 +34,10 @@ function MakeSuggestion(suggestion)
 		autosize = true,
 		padding = {0, 0, 0, 0},
 		font = {
-			size = config.suggestions.fontSize,
+			size = config.suggestions.font.size,
 -- 			shadow = false,
 			color = config.suggestions.suggestionColor,
-			font = config.console.fontFile,
+			font = config.console.font.file,
 		},
 		parent = ctrlSuggestion,
 	}
@@ -48,7 +48,7 @@ function MakeSuggestion(suggestion)
 		caption = "",
 		padding = {0, 0, 0, 0},
 		font = {
-			size = config.suggestions.fontSize,
+			size = config.suggestions.font.size,
 -- 			shadow = false,
 			color = config.suggestions.descriptionColor,
 			font = config.console.fontFile,
@@ -114,8 +114,8 @@ function GenerateSuggestions()
 	end
 	local fakeCtrl = Chili.Button:New {
 		x = 0,
-		y = (#suggestions - 1) * (config.suggestions.fontSize + config.suggestions.padding),
-		height = (config.suggestions.fontSize + config.suggestions.padding),
+		y = (#suggestions - 1) * (config.suggestions.font.size + config.suggestions.suggestionPadding),
+		height = (config.suggestions.font.size + config.suggestions.suggestionPadding),
 		autosize = true,
 		--width = "100%",
 		resizable = false,
@@ -220,7 +220,7 @@ end
 
 function UpdateSuggestionDisplay(suggestion, ctrlSuggestion, row)
 	if suggestion.visible then
-		ctrlSuggestion.y = (row - 1) * (config.suggestions.fontSize + config.suggestions.padding)
+		ctrlSuggestion.y = (row - 1) * (config.suggestions.font.size + config.suggestions.suggestionPadding)
 
 		if not ctrlSuggestion.visible then
 			ctrlSuggestion:Show()
@@ -272,7 +272,7 @@ function UpdateSuggestions()
 	end
 
 	-- FIXME: magic numbers and fake controls ^_^
-	spSuggestions.fakeCtrl.y = (count-1+1) * (config.suggestions.fontSize + config.suggestions.padding)
+	spSuggestions.fakeCtrl.y = (count-1+1) * (config.suggestions.font.size + config.suggestions.suggestionPadding)
 
 	if currentSuggestion ~= 0 and scrollSuggestions.visible then
 		local suggestion = suggestions[filteredSuggestions[currentSuggestion]]
@@ -301,8 +301,8 @@ function AreSuggestionsInverted()
 		return true
 	end
 	local _, vsy = Spring.GetViewGeometry()
-	local y = config.console.y * vsy + ebConsole.height
-	local h = config.suggestions.h * vsy
+	local y = ebConsole.y + ebConsole.height
+	local h = config.suggestions.height
 	return y + h > vsy and y - h >= 0
 end
 

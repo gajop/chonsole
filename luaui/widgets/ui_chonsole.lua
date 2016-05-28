@@ -83,20 +83,21 @@ function widget:Initialize()
 	ebConsole = Chili.EditBox:New(config.console)
 	ebConsole:Hide()
 	
-	scrollSuggestions = Chili.ScrollPanel:New {
+	table.merge(config.suggestions, {
 		borderColor = { 0, 0, 0, 0 },
 		focusColor = { 0, 0, 0, 0 },
 		backgroundColor = { 0, 0, 0, 1 },
 		parent = screen0,
 		scrollbarSize = 4,
-	}
+	})
+	scrollSuggestions = Chili.ScrollPanel:New(config.suggestions)
 	spSuggestions = Chili.Control:New {
 		x = 0,
 		y = 0,
 		autosize = true,
 		itemMargin    = {0,0,0,0},
 		itemPadding   = {0,0,0,0},
-		padding 	  = {0, 0, 0, 0},
+		padding 	  = {0,0,0,0},
 		parent = scrollSuggestions,
 	}
 	scrollSuggestions:Hide()
@@ -123,12 +124,12 @@ end
 
 function ResizeUI(vsx, vsy)
 	if not AreSuggestionsInverted() then
-		scrollSuggestions:SetPos(ebConsole.x, ebConsole.y + ebConsole.height + config.suggestions.y, ebConsole.width, ebConsole.height * vsy)
+		scrollSuggestions:SetPos(ebConsole.x, ebConsole.y + ebConsole.height + scrollSuggestions.offsetY, ebConsole.width, scrollSuggestions.height)
 	else
-		local sh = config.suggestions.h * vsy
-		scrollSuggestions:SetPos(ebConsole.x, ebConsole.y - sh - config.suggestions.y, ebConsole.width, sh)
+		scrollSuggestions:SetPos(ebConsole.x, ebConsole.y - scrollSuggestions.height - scrollSuggestions.offsetY, ebConsole.width, scrollSuggestions.height)
 	end
-	spSuggestions:SetPos(nil, nil, config.console.width, config.suggestions.h * vsy)
+	spSuggestions:SetPos(nil, nil, spSuggestions.width, spSuggestions.height)
+-- 	spSuggestions:SetPos(nil, nil, 300, 200)
 	--FIXME: either use config or better autodetection of these values
 	--lblContext:SetPos(ebConsole.x - lblContext.width - 6, ebConsole.y + 7)
 	lblContext:SetPos(ebConsole.x - lblContext.width - 10, ebConsole.y + 6)
@@ -143,20 +144,32 @@ function widget:Shutdown()
 	CloseMarker()
 end
 
-function widget:KeyPress(key, mods, ...)
+function widget:KeyPress(key, ...)
+	local parsedKey = false
 	if key == Spring.GetKeyCode("enter") or key == Spring.GetKeyCode("numpad_enter") then
 		if not ebConsole.visible then
 			ebConsole:Show()
 		end
 		screen0:FocusControl(ebConsole)
-		if mods.alt then
-			SetContext({ display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true })
-		elseif mods.ctrl or (GetCurrentContext() == nil or not GetCurrentContext().persist) then
-			SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
-		end
-		ShowContext()
-		return true
+		parsedKey = true
 	end
+	local varargs = {...}
+	local result = false
+	for _, context in pairs(GetContexts()) do
+		local success, err = pcall(function() result = context.keyPress(key, unpack(varargs)) end)
+		if not success then
+			Spring.Log("Chonsole", LOG.ERROR, "Error invoking keypress for custom context: " .. tostring(context))
+			Spring.Log("Chonsole", LOG.ERROR, err)
+		end
+		if result then
+			parsedKey = true
+			break
+		end
+	end
+	if GetCurrentContext() ~= nil then
+		ShowContext()
+	end
+	return parsedKey
 end
 
 function widget:MousePress(x, y, button)
@@ -175,17 +188,19 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 	MarkerParseKey(key, mods, isRepeat)
 	if key == Spring.GetKeyCode("enter") or 
 		key == Spring.GetKeyCode("numpad_enter") then
-		if mods.alt then
-			if GetCurrentContext().name == "allies" then
-				SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
-			else
-				SetContext({ display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true })
+		local result
+		for _, context in pairs(GetContexts()) do
+			local success, err = pcall(function() result = context.parseKey(key, mods, isRepeat) end)
+			if not success then
+				Spring.Log("Chonsole", LOG.ERROR, "Error invoking keypress for custom context: " .. tostring(context))
+				Spring.Log("Chonsole", LOG.ERROR, err)
 			end
-			ShowContext()
-		elseif mods.ctrl then
-			SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
-			ShowContext()
-		else
+			if result then
+				parsedKey = true
+				break
+			end
+		end
+		if not result then
 			ProcessText(ebConsole.text)
 			HideConsole()
 		end
@@ -235,36 +250,23 @@ end
 
 function PostParseKey(...)
 	local txt = ebConsole.text
-	if txt:lower() == "/a " or txt:lower() == "a:" then
-		ebConsole:SetText("")
-		SetContext({ display = i18n("allies_context", {default="Ally:"}), name = "allies", persist = true })
-	elseif txt:lower() == "/s " or txt:lower() == "/say " then
-		ebConsole:SetText("")
-		SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
-	elseif txt:lower() == "/spec " or txt:lower() == "s:" then
-		ebConsole:SetText("")
-		SetContext({ display = i18n("spectators_context", {default="Spec:"}), name = "spectators", persist = true })
--- 	elseif txt:trim():starts("/") and #txt:trim() > 1 then
--- 		GetCurrentContext() = { display = "Command:", name = "command", persist = false }
-	else
-		local res, context = false, nil
-		for _, parser in pairs(GetContexts()) do
-			local success, err = pcall(function() res, context = parser.parse(txt) end)
-			if not success then
-				Spring.Log("Chonsole", LOG.ERROR, "Error processing custom context: " .. tostring(cmd.command))
-				Spring.Log("Chonsole", LOG.ERROR, err)
-			end
-			if res then
-				ebConsole:SetText("")
-				SetContext(context)
-				break
-			end
+	local context
+	for _, parser in pairs(GetContexts()) do
+		local success, err = pcall(function() context = parser.parse(txt) end)
+		if not success then
+			Spring.Log("Chonsole", LOG.ERROR, "Error processing custom context: " .. tostring(context))
+			Spring.Log("Chonsole", LOG.ERROR, err)
 		end
-		
-		if not res and not GetCurrentContext().persist then
-			SetContext({ display = i18n("say_context", {default="Say:"}), name = "say", persist = true })
+		if context then
+			SetContext(context)
+			break
 		end
 	end
+	
+	if not res and not GetCurrentContext().persist then
+		ResetCurrentContext()
+	end
+-- 	end
 	if preText ~= txt then -- only update suggestions if text changed
 		currentSuggestion = 0
 		currentSubSuggestion = 0
@@ -297,6 +299,10 @@ function PostFocusUpdate(...)
 end
 
 function ShowContext()
+	if not ebConsole.visible then
+		return
+	end
+	EnterCurrentContext(ebConsole.text)
 	if not lblContext.visible then
 		lblContext:Show()
 	end
@@ -364,40 +370,17 @@ function ProcessText(str)
 			Spring.SendCommands(command)
 		end
 	else
-		local command
-		if GetCurrentContext().name == "say" then
-			command = "say "
-		elseif GetCurrentContext().name == "allies" then
-			command = "say a:"
-		elseif GetCurrentContext().name == "spectators" then
-			command = "say s:"
-		elseif GetCurrentContext().name == "label" then
+		if GetCurrentContext().name == "label" then
 			AddMarker(str)
 			ResetCurrentContext()
 		else
-			local found = false
-			for _, parser in pairs(GetContexts()) do
-				if GetCurrentContext().name == parser.name then
-					local success, err = pcall(function() parser.exec(str, GetCurrentContext()) end)
-					if not success then
-						Spring.Log("Chonsole", LOG.ERROR, "Error executing custom context: " .. tostring(cmd.command))
-						Spring.Log("Chonsole", LOG.ERROR, err)
-					end
-					found = true
-					break
-				end
-			end
+			local found = ExecuteCurrentContext(str, cmd)
 			
 			if not found then
-				Spring.Echo(GetCurrentContext())
 				Spring.Echo("Unexpected context " .. GetCurrentContext().name)
-				command = "say "
+				Spring.SendCommands("say " .. str)
 			end
 		end
-		if command then
-			Spring.SendCommands(command .. str)
-		end
-		--Spring.SendMessageToTeam(Spring.GetMyTeamID(), str)
 	end
 end
 
