@@ -43,6 +43,14 @@ VFS.Include(CHONSOLE_MODULES_FOLDER .. "/marker.lua", nil, VFS.DEF_MODE)
 VFS.Include(CHONSOLE_MODULES_FOLDER .. "/suggestions.lua", nil, VFS.DEF_MODE)
 VFS.Include(CHONSOLE_MODULES_FOLDER .. "/util.lua", nil, VFS.DEF_MODE)
 
+function GetText()
+	if ebConsole then
+		return ebConsole.text
+	else
+		return ""
+	end
+end
+
 function widget:Initialize()
 	if not WG.Chili then
 		widgetHandler:RemoveWidget(widget)
@@ -153,19 +161,7 @@ function widget:KeyPress(key, ...)
 		screen0:FocusControl(ebConsole)
 		parsedKey = true
 	end
-	local varargs = {...}
-	local result = false
-	for _, context in pairs(GetContexts()) do
-		local success, err = pcall(function() result = context.keyPress(key, unpack(varargs)) end)
-		if not success then
-			Spring.Log("Chonsole", LOG.ERROR, "Error invoking keypress for custom context: " .. tostring(context))
-			Spring.Log("Chonsole", LOG.ERROR, err)
-		end
-		if result then
-			parsedKey = true
-			break
-		end
-	end
+	parsedKey = KeyPressContext(key, ...) or parsedKey
 	if GetCurrentContext() ~= nil then
 		ShowContext()
 	end
@@ -188,20 +184,8 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 	MarkerParseKey(key, mods, isRepeat)
 	if key == Spring.GetKeyCode("enter") or 
 		key == Spring.GetKeyCode("numpad_enter") then
-		local result
-		for _, context in pairs(GetContexts()) do
-			local success, err = pcall(function() result = context.parseKey(key, mods, isRepeat) end)
-			if not success then
-				Spring.Log("Chonsole", LOG.ERROR, "Error invoking keypress for custom context: " .. tostring(context))
-				Spring.Log("Chonsole", LOG.ERROR, err)
-			end
-			if result then
-				parsedKey = true
-				break
-			end
-		end
-		if not result then
-			ProcessText(ebConsole.text)
+		if not ParseKeyContext(key, mods, isRepeat) then
+			ProcessText(GetText())
 			HideConsole()
 		end
 	elseif key == Spring.GetKeyCode("esc") then
@@ -209,7 +193,7 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 	elseif key == Spring.GetKeyCode("up") then
 		if not SuggestionsUp() then
 			if GetCurrentHistory() == 0 then
-				FilterHistory(ebConsole.text)
+				FilterHistory(GetText())
 			end
 			NextHistoryItem()
 		end
@@ -220,7 +204,9 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 			SuggestionsDown()
 		end
 	elseif key == Spring.GetKeyCode("tab") then
-		SuggestionsTab()
+		if not SuggestionsTab() then
+			NameSuggestionTab()
+		end
 	elseif key == Spring.GetKeyCode("pageup") then
 		for i = 1, config.suggestions.pageUpFactor do
 			if currentSuggestion > 0 or currentSubSuggestion > 0 then
@@ -232,7 +218,7 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 			SuggestionsDown()
 		end
 	else
-		preText = ebConsole.text
+		preText = GetText()
 		return false
 	end
 	return true
@@ -240,7 +226,7 @@ end
 
 function UpdateTexture()
 	texName = nil
-	local txt = ebConsole.text
+	local txt = GetText()
 	if txt:sub(1, #"/texture ") == "/texture " then
 		local cmdParts = explode(" ", txt:sub(#"/texture"+1):trimLeft():gsub("%s+", " "))
 		local partialCmd = cmdParts[1]:lower()
@@ -249,24 +235,11 @@ function UpdateTexture()
 end
 
 function PostParseKey(...)
-	local txt = ebConsole.text
-	local context
-	for _, parser in pairs(GetContexts()) do
-		local success, err = pcall(function() context = parser.parse(txt) end)
-		if not success then
-			Spring.Log("Chonsole", LOG.ERROR, "Error processing custom context: " .. tostring(context))
-			Spring.Log("Chonsole", LOG.ERROR, err)
-		end
-		if context then
-			SetContext(context)
-			break
-		end
-	end
-	
-	if not res and not GetCurrentContext().persist then
+	local txt = GetText()
+
+	if not TryEnterContext(txt) and not GetCurrentContext().persist then
 		ResetCurrentContext()
 	end
--- 	end
 	if preText ~= txt then -- only update suggestions if text changed
 		currentSuggestion = 0
 		currentSubSuggestion = 0
@@ -302,26 +275,20 @@ function ShowContext()
 	if not ebConsole.visible then
 		return
 	end
-	EnterCurrentContext(ebConsole.text)
+-- 	EnterCurrentContext(GetText())
 	if not lblContext.visible then
 		lblContext:Show()
 	end
+	lblContext.font.color = GetCurrentContext().color or {1, 1, 1, 1}
 	lblContext:SetCaption(GetCurrentContext().display)
+	ebConsole.font.color = GetCurrentContext().color or {1, 1, 1, 1}
+	ebConsole.cursorColor = GetCurrentContext().color or {1, 1, 1, 1}
+	ebConsole.font:Invalidate()
 end
 
 function ShowHistoryItem()
 	ebConsole:SetText(GetCurrentHistoryItem())
-	ebConsole.cursor = #ebConsole.text + 1
-end
-
-function ExecuteCustomCommand(cmd, command, cmdParts)
-	currentCmd = cmd.command
-	local success, err = pcall(function() cmd.exec(command, cmdParts) end)
-	if not success then
-		Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command: " .. tostring(cmd.command))
-		Spring.Log("Chonsole", LOG.ERROR, err)
-	end
-	currentCmd = ""
+	ebConsole.cursor = #GetText() + 1
 end
 
 function ProcessText(str)
@@ -374,9 +341,7 @@ function ProcessText(str)
 			AddMarker(str)
 			ResetCurrentContext()
 		else
-			local found = ExecuteCurrentContext(str, cmd)
-			
-			if not found then
+			if not ExecuteCurrentContext(str, cmd) then
 				Spring.Echo("Unexpected context " .. GetCurrentContext().name)
 				Spring.SendCommands("say " .. str)
 			end

@@ -10,10 +10,10 @@ local yellow = { 1, 1, 0, 1 }
 -- General
 config = {
 	console = {
-		x = "51.7%",
-		y = "20%",
+		x = "26%",
+		y = "24.5%",
 -- 		bottom = 0,
-		width = "20.5%",
+		width = "41%",
 		height = 36,
 		font = {
 -- 			file = "LuaUI/fonts/dejavu-sans-mono/DejaVuSansMono.ttf",
@@ -22,16 +22,19 @@ config = {
 		cursorColor = { 0.9, 0.9, 0.9, 0.7 },
 		borderColor = { 0, 0, 0, 0 },
 		focusColor = { 0, 0, 0, 0 },
+
 		keepFocus = true,
 	},
 	suggestions = {
 		height = "40%",
-		offsetY = 0,
-		--offsetY = 150, -- distance from input editbox in absolute values
-		inverted = false, -- if set to true, it will appear above the console
 		font = {
 			size = 16,
 		},
+
+-- 		disableMenu = true, -- if set to true, the suggestion popup menu won't appear
+		offsetY = 0, -- distance from input editbox in absolute values
+		--offsetY = 150,
+		forceDirection = nil, -- can be set to "up" or "down" to force suggestions appearing up or down
 		suggestionPadding = 4,
 		pageUpFactor = 10,
 		pageDownFactor = 10,
@@ -46,6 +49,9 @@ config = {
 		autoCheatColor = yellow,
 	},
 	chat = {
-		showPrefix = true,
+		canSpecChat = false,
+		sayChatColor = {1, 1, 1, 1},
+		allyChatColor = {0, 0.7, 0.2, 1},
+		specChatColor = {0.4, 0.6, 1, 1},
 	},
 }

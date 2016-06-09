@@ -210,12 +210,12 @@ function FilterSuggestions(txt)
 end
 
 function ShowSuggestions()
-	if not scrollSuggestions.visible then
+	if not scrollSuggestions.visible and not config.suggestions.disableMenu then
 		scrollSuggestions:Show()
 	end
 	
 	FilterSuggestions(ebConsole.text)
-	UpdateSuggestions()	
+	UpdateSuggestions()
 end
 
 function UpdateSuggestionDisplay(suggestion, ctrlSuggestion, row)
@@ -297,8 +297,10 @@ function HideSuggestions()
 end
 
 function AreSuggestionsInverted()
-	if config.suggestions.inverted then
+	if config.suggestions.forceDirection == "up" then
 		return true
+	elseif config.suggestions.forceDirection == "down" then
+		return false
 	end
 	local _, vsy = Spring.GetViewGeometry()
 	local y = ebConsole.y + ebConsole.height
@@ -350,9 +352,20 @@ function SuggestionsDown()
 	end
 end
 
+function PrintSuggestions()
+	for _, suggestion in pairs(suggestions) do
+		Spring.Echo(suggestion.text)
+	end
+end
+
 function SuggestionsTab()
 	if #filteredSuggestions == 0 then
-		return true
+		return
+	end
+	if config.suggestions.disableMenu then
+		Spring.Echo("diable suggestions")
+		PrintSuggestions()
+		return
 	end
 	local nextSuggestion, nextSubSuggestion
 	if #filteredSuggestions > currentSuggestion then
@@ -388,6 +401,60 @@ function SuggestionsTab()
 		end
 		ebConsole.cursor = #ebConsole.text + 1
 		UpdateSuggestions()
+	end
+	return true
+end
+
+local function _GetCurrentWord()
+	local txt = ebConsole.text
+	local startX, endX = 1, 1
+	for i = ebConsole.cursor-1, 1, -1 do
+		if txt:sub(i, i) == " " then
+			startX = i + 1
+			break
+		end
+	end
+	endX = txt:find(" ", ebConsole.cursor) or (#txt + 1)
+	endX = endX - 1
+	return txt:sub(startX, endX), startX, endX
+end
+
+local function _GetPlayerNames()
+	local playerNames = {}
+	for _, playerID in pairs(Spring.GetPlayerList()) do
+		local name = Spring.GetPlayerInfo(playerID)
+		table.insert(playerNames, name)
+	end
+	return playerNames
+end
+
+local function _ParseClan(word)
+	if word:sub(1, 1) == "[" then
+		local endClan = word:find("]")
+		if endClan then
+			word = word:sub(endClan+1)
+		end
+	end
+	return word
+end
+
+function NameSuggestionTab()
+	local txt = ebConsole.text
+
+	local playerNames = _GetPlayerNames()
+
+	local word, startX, endX = _GetCurrentWord()
+	word = _ParseClan(word)
+	if #word == 0 then
+		return
+	end
+
+	for _, playerName in pairs(playerNames) do
+		if playerName:starts(word) or _ParseClan(playerName):starts(word) then
+			ebConsole:SetText(txt:sub(1, startX-1) .. playerName .. txt:sub(endX + 1))
+			ebConsole.cursor = startX + #playerName
+			return true
+		end
 	end
 end
 
