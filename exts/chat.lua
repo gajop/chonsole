@@ -142,6 +142,7 @@ context = {
 		name = specContext.name,
 		tryEnter = function(txt)
 			if not AllowedContextSwitch() then return false end
+			if not CanSpecChat() then return false end
 			local prefix = txt:lower():sub(1, 6)
 			if prefix == "/s " then
 				SetConsoleText(txt:sub(7))
