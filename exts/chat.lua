@@ -22,13 +22,36 @@ local specContext = {
 	color = config.chat.specChatColor,
 }
 
-SetDefaultContext(sayContext)
+local function _SetDefaultContext()
+	if not Spring.GetSpectatingState() then
+		SetDefaultContext(allyContext)
+	else
+		SetDefaultContext(specContext)
+	end
+end
+_SetDefaultContext()
+
+function PlayerChanged(playerID)
+	_SetDefaultContext()
+end
+
+local function GetRestrictedChat()
+	if not Spring.GetSpectatingState() then
+		return allyContext
+	else
+		return specContext
+	end
+end
+
+local function CanSpecChat()
+	return Spring.GetSpectatingState() or config.chat.canSpecChat
+end
 
 local function KeyPress(key, mods, ...)
 	if key == Spring.GetKeyCode("enter") or key == Spring.GetKeyCode("numpad_enter") then
 		if mods.alt then
-			SetContext(allyContext)
-		elseif mods.shift then
+			SetContext(GetRestrictedChat())
+		elseif mods.shift and CanSpecChat() then
 			SetContext(specContext)
 		elseif mods.ctrl or (GetCurrentContext() == nil or not GetCurrentContext().persist) then
 			SetContext(sayContext)
@@ -41,19 +64,19 @@ end
 
 local function ParseKey(key, mods, isRepeat)
 	if mods.alt then
-		if GetCurrentContext().name == allyContext.name then
+		if GetCurrentContext().name == GetRestrictedChat().name then
 			SetContext(sayContext)
 		else
-			SetContext(allyContext)
+			SetContext(GetRestrictedChat())
 		end
-	elseif mods.ctrl then
-		SetContext(sayContext)
-	elseif mods.shift then
+	elseif mods.shift and CanSpecChat() then
 		if GetCurrentContext().name == specContext.name then
 			SetContext(sayContext)
 		else
 			SetContext(specContext)
 		end
+	elseif mods.ctrl then
+		SetContext(sayContext)
 	else
 		return false
 	end
@@ -77,7 +100,7 @@ context = {
 		tryEnter = function(txt)
 			if not AllowedContextSwitch() then return false end
 			local prefix = txt:lower():sub(1, 3)
-			if prefix == "/a " then
+			if prefix == "/t " then
 				SetConsoleText(txt:sub(4))
 				return allyContext
 			elseif prefix:sub(1, 2) == "a:" then
@@ -100,7 +123,7 @@ context = {
 		tryEnter = function(txt)
 			if not AllowedContextSwitch() then return false end
 			local prefix = txt:lower():sub(1, 5)
-			if prefix == "/say " then
+			if prefix == "/a " then
 				SetConsoleText(txt:sub(6))
 				return sayContext
 			end
@@ -120,7 +143,7 @@ context = {
 		tryEnter = function(txt)
 			if not AllowedContextSwitch() then return false end
 			local prefix = txt:lower():sub(1, 6)
-			if prefix == "/spec " then
+			if prefix == "/s " then
 				SetConsoleText(txt:sub(7))
 				return specContext
 			elseif prefix:sub(1, 2) == "s:" then

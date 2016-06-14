@@ -16,7 +16,7 @@ config = {
 		width = "41%",
 		height = 36,
 		font = {
--- 			file = "LuaUI/fonts/dejavu-sans-mono/DejaVuSansMono.ttf",
+-- 			font = "LuaUI/DejaVuSansMono.ttf",
 			size = 22,
 		},
 		cursorColor = { 0.9, 0.9, 0.9, 0.7 },
@@ -51,7 +51,7 @@ config = {
 	chat = {
 		canSpecChat = false,
 		sayChatColor = {1, 1, 1, 1},
-		allyChatColor = {0, 0.7, 0.2, 1},
-		specChatColor = {0.4, 0.6, 1, 1},
+		allyChatColor = {0, 1, 0.2, 1},
+		specChatColor = {0.6, 0.8, 1, 1},
 	},
 }

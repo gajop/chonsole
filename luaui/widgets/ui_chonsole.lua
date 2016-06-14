@@ -116,7 +116,7 @@ function widget:Initialize()
 		caption = "",
 		parent = screen0,
 		font = {
-			font = config.console.font.file,
+			font = config.console.font.font,
 			size = config.console.font.size,
 			shadow = true,
 		},
@@ -209,8 +209,8 @@ function ParseKey(ebConsole, key, mods, isRepeat)
 		end
 	elseif key == Spring.GetKeyCode("pageup") then
 		for i = 1, config.suggestions.pageUpFactor do
-			if currentSuggestion > 0 or currentSubSuggestion > 0 then
-				SuggestionsUp()
+			if not SuggestionsUp() then
+				break
 			end
 		end
 	elseif key == Spring.GetKeyCode("pagedown") then
@@ -395,3 +395,10 @@ function widget:Update()
 		screen0:FocusControl(ebConsole)
 	end
 end
+
+function widget:PlayerChanged(playerID)
+	if PlayerChanged then
+		PlayerChanged(playerID)
+	end
+end
+

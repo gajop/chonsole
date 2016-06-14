@@ -7,6 +7,11 @@ local filteredSuggestions = {}
 local dynamicSuggestions = {}
 local preText -- used to determine if text changed
 
+-- name suggestions
+local nameSuggestions = {}
+local nameSuggestionIndx = 1
+local nameSuggestionTxt
+
 function GetSuggestionIndexByName(name)
 	local index = suggestionNameMapping[name]
 	if index then
@@ -106,6 +111,9 @@ function GenerateSuggestions()
 		suggestion.id = i
 		suggestionNameMapping[suggestion.command:lower()] = i
 	end
+	if config.suggestions.disableMenu then
+		return
+	end
 	spSuggestions.ctrls = {}
 	for _, suggestion in pairs(suggestions) do
 		local ctrlSuggestion = CreateSuggestion(suggestion)
@@ -134,7 +142,7 @@ end
 function CleanupSuggestions()
 	-- cleanup dynamic suggestions
 	for _, dynamicSuggestion in pairs(dynamicSuggestions) do
-		dynamicSuggestion.suggestion.visible = false
+		dynamicSuggestion.visible = false
 	end
 
 	filteredSuggestions = {}
@@ -187,21 +195,28 @@ function FilterSuggestions(txt)
 					Spring.Log("Chonsole", LOG.ERROR, err)
 					return
 				end
+-- 				if config.suggestions.disableMenu then
+-- 					return
+-- 				end
 				for i, subSuggestion in pairs(subSuggestions) do
 					if subSuggestion.visible == nil then
 						subSuggestion.visible = true
 					end
 					subSuggestion.dynId = #dynamicSuggestions + 1
 					if i > #dynamicSuggestions then
-						local ctrlSuggestion = CreateSuggestion(subSuggestion)
-						ctrlSuggestion.suggestion = subSuggestion
-						table.insert(dynamicSuggestions, ctrlSuggestion)
-						spSuggestions:AddChild(ctrlSuggestion)
+						if not config.suggestions.disableMenu then
+							local ctrlSuggestion = CreateSuggestion(subSuggestion)
+							subSuggestion.ctrlSuggestion = ctrlSuggestion
+							spSuggestions:AddChild(ctrlSuggestion)
+						end
+						table.insert(dynamicSuggestions, subSuggestion)
 					else
-						local ctrlSuggestion = dynamicSuggestions[i]
-						ctrlSuggestion.suggestion.visible = true
-						ctrlSuggestion.suggestion = subSuggestion
-						PopulateSuggestion(ctrlSuggestion, subSuggestion)
+						local ctrlSuggestion = dynamicSuggestions[i].ctrlSuggestion
+						dynamicSuggestions[i] = subSuggestion
+						if not config.suggestions.disableMenu then
+							dynamicSuggestions[i].ctrlSuggestion = ctrlSuggestion
+							PopulateSuggestion(ctrlSuggestion, subSuggestion)
+						end
 					end
 				end
 			end
@@ -256,6 +271,10 @@ function UpdateSuggestionDisplay(suggestion, ctrlSuggestion, row)
 end
 
 function UpdateSuggestions()
+	if config.suggestions.disableMenu then
+		return
+	end
+
 	UpdateTexture()
 	local count = 0
 	for _, suggestion in pairs(suggestions) do
@@ -267,8 +286,9 @@ function UpdateSuggestions()
 	end
 	for _, dynamicSuggestion in pairs(dynamicSuggestions) do
 		count = count + 1
-		dynamicSuggestion.x = 50
-		UpdateSuggestionDisplay(dynamicSuggestion.suggestion, dynamicSuggestion, count)
+		local ctrlSuggestion = dynamicSuggestion.ctrlSuggestion
+		ctrlSuggestion.x = 50
+		UpdateSuggestionDisplay(dynamicSuggestion, ctrlSuggestion, count)
 	end
 
 	-- FIXME: magic numbers and fake controls ^_^
@@ -276,8 +296,12 @@ function UpdateSuggestions()
 
 	if currentSuggestion ~= 0 and scrollSuggestions.visible then
 		local suggestion = suggestions[filteredSuggestions[currentSuggestion]]
-		local selY = spSuggestions.ctrls[suggestion.id].y
-		scrollSuggestions:SetScrollPos(0, selY, true, false)
+		if suggestion == nil then
+			Spring.Echo("BUG!", currentSuggestion, #filteredSuggestions, filteredSuggestions[currentSuggestion])
+		else
+			local selY = spSuggestions.ctrls[suggestion.id].y
+			scrollSuggestions:SetScrollPos(0, selY, true, false)
+		end
 	end
 	if count > 0 and not scrollSuggestions.visible then
 		scrollSuggestions:RequestUpdate()
@@ -311,32 +335,30 @@ end
 function SuggestionsUp()
 	if currentSubSuggestion > 1 then
 		currentSubSuggestion = currentSubSuggestion - 1
-		local suggestion = dynamicSuggestions[currentSubSuggestion].suggestion
+		local suggestion = dynamicSuggestions[currentSubSuggestion]
 		ebConsole:SetText(suggestion.command)
 		ebConsole.cursor = #ebConsole.text + 1
 		UpdateSuggestions()
 		return true
 	elseif currentSuggestion > 1 then
 		currentSuggestion = currentSuggestion - 1
--- 			if currentSuggestion > 0 then
 		local id = filteredSuggestions[currentSuggestion]
 		ebConsole:SetText(suggestions[id].text)
 		ebConsole.cursor = #ebConsole.text + 1
 		UpdateSuggestions()
 		return true
--- 			end
 	end
 end
 
 function SuggestionsDown()
-	if not (#filteredSuggestions > currentSuggestion or (#dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible)) then
+	if not (#filteredSuggestions > currentSuggestion or (#dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].visible)) then
 		return false
 	end
 	
 	if #filteredSuggestions == 1 and #dynamicSuggestions ~= 0 then
-		if #dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible then
+		if #dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].visible then
 			currentSubSuggestion = currentSubSuggestion + 1
-			local suggestion = dynamicSuggestions[currentSubSuggestion].suggestion
+			local suggestion = dynamicSuggestions[currentSubSuggestion]
 			ebConsole:SetText(suggestion.command)
 			ebConsole.cursor = #ebConsole.text + 1
 			UpdateSuggestions()
@@ -363,9 +385,8 @@ function SuggestionsTab()
 		return
 	end
 	if config.suggestions.disableMenu then
-		Spring.Echo("diable suggestions")
-		PrintSuggestions()
-		return
+-- 		PrintSuggestions()
+-- 		return
 	end
 	local nextSuggestion, nextSubSuggestion
 	if #filteredSuggestions > currentSuggestion then
@@ -373,15 +394,15 @@ function SuggestionsTab()
 	else
 		nextSuggestion = 1
 	end
-	if #dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].suggestion.visible then
+	if #dynamicSuggestions > currentSubSuggestion and dynamicSuggestions[currentSubSuggestion+1].visible then
 		nextSubSuggestion = currentSubSuggestion + 1
 	else
 		nextSubSuggestion = 1
 	end
 	if #filteredSuggestions == 1 and #dynamicSuggestions ~= 0 and #suggestions[filteredSuggestions[1]].text <= #ebConsole.text then
-		if #dynamicSuggestions[nextSubSuggestion].suggestion.command >= #ebConsole.text or currentSubSuggestion ~= 0 then
+		if #dynamicSuggestions[nextSubSuggestion].command >= #ebConsole.text or currentSubSuggestion ~= 0 then
 			currentSubSuggestion = nextSubSuggestion
-			local suggestion = dynamicSuggestions[currentSubSuggestion].suggestion
+			local suggestion = dynamicSuggestions[currentSubSuggestion]
 			if #dynamicSuggestions > 1 then
 				ebConsole:SetText(suggestion.command)
 			else
@@ -438,9 +459,18 @@ local function _ParseClan(word)
 	return word
 end
 
-function NameSuggestionTab()
-	local txt = ebConsole.text
+local function _SetName(playerName, startX, endX)
+	ebConsole:SetText(ebConsole.text:sub(1, startX-1) .. playerName .. ebConsole.text:sub(endX + 1))
+	ebConsole.cursor = startX + #playerName
+end
 
+local function _ResetNameSuggestions()
+	nameSuggestions = {}
+	nameSuggestionIndx = 1
+	nameSuggestionTxt = word
+end
+
+function NameSuggestionTab()
 	local playerNames = _GetPlayerNames()
 
 	local word, startX, endX = _GetCurrentWord()
@@ -449,13 +479,23 @@ function NameSuggestionTab()
 		return
 	end
 
+	if #nameSuggestions ~= 0 and nameSuggestionTxt == word then
+		nameSuggestionIndx = nameSuggestionIndx + 1
+		if nameSuggestionIndx > #nameSuggestions then
+			nameSuggestionIndx = 1
+		end
+		_SetName(nameSuggestions[nameSuggestionIndx], startX, endX)
+		return true
+	end
+
+	_ResetNameSuggestions()
 	for _, playerName in pairs(playerNames) do
 		if playerName:starts(word) or _ParseClan(playerName):starts(word) then
-			ebConsole:SetText(txt:sub(1, startX-1) .. playerName .. txt:sub(endX + 1))
-			ebConsole.cursor = startX + #playerName
-			return true
+			_SetName(playerName, startX, endX)
+			table.insert(nameSuggestions, playerName)
 		end
 	end
+	return #nameSuggestions > 0
 end
 
 function GetCommandList()
