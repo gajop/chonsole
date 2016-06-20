@@ -163,12 +163,12 @@ commands = {
 context = {
 	{
 		name = "channel",
-		parse = function(txt)
+		tryEnter = function(txt)
 			if tonumber(txt:trim():sub(2)) ~= nil and txt:sub(#txt, #txt) == " " then
 				local id = tonumber(txt:trim():sub(2))
 				if consoles[id] ~= nil then
 					ebConsole:SetText("")
-					return { display = "\255" .. channelColor .. "[" .. tostring(id) .. ". " .. consoles[id] .. "]\b", name = "channel", id = id, persist = true }
+					return { display = "[" .. tostring(id) .. ". " .. consoles[id] .. "]", name = "channel", id = id, persist = true, color = config.lobby.channelColor }
 				end
 			end
 		end,

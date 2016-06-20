@@ -130,30 +130,37 @@ function GetContexts()
 	return contextParser
 end
 
-function TryEnterContext(txt)
-	for _, parser in pairs(GetContexts()) do
-		local context
-		local success, err = pcall(function() context = parser.tryEnter(txt) end)
-		if not success then
-			Spring.Log("Chonsole", LOG.ERROR, "Error processing custom context: " .. tostring(context.name))
-			Spring.Log("Chonsole", LOG.ERROR, err)
+local function _TryContextCall(context, fname, ...)
+	if context[fname] == nil then
+		return false
+	end
+	local varargs = {...}
+	succ, result = xpcall(
+		function() 
+			return context[fname](unpack(varargs)) end,
+		function(err)
+			Spring.Log("Chonsole", LOG.ERROR, "Error invoking " .. fname .. " custom context: " .. tostring(context.name))
+			Spring.Log("Chonsole", LOG.ERROR, debug.traceback(err))
 		end
-		if context then
-			SetContext(context)
+	)
+	if succ then 
+		return result
+	end
+end
+
+function TryEnterContext(txt)
+	for _, context in pairs(GetContexts()) do
+		local newContext = _TryContextCall(context, "tryEnter", txt)
+		if newContext then
+			SetContext(newContext)
 			return true
 		end
 	end
 end
 
 function KeyPressContext(...)
-	local varargs = {...}
-	local result = false
 	for _, context in pairs(GetContexts()) do
-		local success, err = pcall(function() result = context.keyPress(unpack(varargs)) end)
-		if not success then
-			Spring.Log("Chonsole", LOG.ERROR, "Error invoking keypress for custom context: " .. tostring(context.name))
-			Spring.Log("Chonsole", LOG.ERROR, err)
-		end
+		local result = _TryContextCall(context, "keyPress", ...)
 		if result then
 			return result
 		end
@@ -161,14 +168,8 @@ function KeyPressContext(...)
 end
 
 function ParseKeyContext(...)
-	local varargs = {...}
-	local result = false
 	for _, context in pairs(GetContexts()) do
-		local success, err = pcall(function() result = context.parseKey(unpack(varargs)) end)
-		if not success then
-			Spring.Log("Chonsole", LOG.ERROR, "Error invoking parsekey for custom context: " .. tostring(context.name))
-			Spring.Log("Chonsole", LOG.ERROR, err)
-		end
+		local result = _TryContextCall(context, "parseKey", ...)
 		if result then
 			return result
 		end
@@ -180,23 +181,15 @@ function ExecuteCurrentContext(txt)
 	if not context then
 		return false
 	end
-	local success, err = pcall(function() context.exec(txt, currentContext) end)
-	if not success then
-		Spring.Log("Chonsole", LOG.ERROR, "Error executing custom context: " .. tostring(context.name))
-		Spring.Log("Chonsole", LOG.ERROR, err)
-	end
+	_TryContextCall(context, "exec", txt, currentContext)
 	return true
 end
 
-function EnterCurrentContext(str)
+function EnterCurrentContext(txt)
 	local context = contextNameMapping[currentContext.name]
 	if not context or context.enter == nil then
 		return false
 	end
-	local success, err = pcall(function() context.enter(str, currentContext) end)
-	if not success then
-		Spring.Log("Chonsole", LOG.ERROR, "Error entering custom context: " .. tostring(context.name))
-		Spring.Log("Chonsole", LOG.ERROR, err)
-	end
+	_TryContextCall(context, "enter", txt, currentContext)
 	return true
 end
