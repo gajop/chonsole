@@ -10,6 +10,8 @@ function widget:GetInfo()
   }
 end
 
+CHONSOLE_FOLDER = "libs/chonsole"
+
 VFS.Include(CHONSOLE_FOLDER .. "/luaui/config/globals.lua", nil, VFS.DEF_MODE)
 
 -- Chili
@@ -27,7 +29,7 @@ local autoCheatBuffer = {}
 -- if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
 -- 	-- FIXME: override Spring.Echo only for this widget
 -- 	local oldEcho = Spring.Echo
--- 	Spring.Echo = function(...) 
+-- 	Spring.Echo = function(...)
 -- 		x = {...}
 -- 		for i = 1, #x do
 -- 			x[i] = "game_message:" .. tostring(x[i])
@@ -52,10 +54,10 @@ function GetText()
 end
 
 function widget:Initialize()
-	if not WG.Chili then
+	Chili = WG.SBChili or WG.Chili
+	if not Chili then
 		widgetHandler:RemoveWidget(widget)
 	end
-	Chili = WG.Chili
 	screen0 = Chili.Screen0
 
 	InitializeExtensions()
@@ -90,7 +92,7 @@ function widget:Initialize()
 	})
 	ebConsole = Chili.EditBox:New(config.console)
 	ebConsole:Hide()
-	
+
 	table.merge(config.suggestions, {
 		borderColor = { 0, 0, 0, 0 },
 		focusColor = { 0, 0, 0, 0 },
@@ -109,7 +111,7 @@ function widget:Initialize()
 		parent = scrollSuggestions,
 	}
 	scrollSuggestions:Hide()
-	
+
 	lblContext = Chili.Label:New {
 		width = 90,
 		align = "right",
@@ -122,9 +124,9 @@ function widget:Initialize()
 		},
 	}
 	lblContext:Hide()
-	
+
 	LoadHistory()
-	
+
 	GenerateSuggestions()
 	local vsx, vsy = Spring.GetViewGeometry()
 	ResizeUI(vsx, vsy)
@@ -182,7 +184,7 @@ end
 
 function ParseKey(ebConsole, key, mods, isRepeat)
 	MarkerParseKey(key, mods, isRepeat)
-	if key == Spring.GetKeyCode("enter") or 
+	if key == Spring.GetKeyCode("enter") or
 		key == Spring.GetKeyCode("numpad_enter") then
 		if not ParseKeyContext(key, mods, isRepeat) then
 			ProcessText(GetText())
@@ -316,7 +318,7 @@ function ProcessText(str)
 				return
 			end
 		end
-		
+
 		Spring.Echo(command)
 		local suggestion = GetSuggestionIndexByName(cmdParts[1])
 		if suggestion then
@@ -401,4 +403,3 @@ function widget:PlayerChanged(playerID)
 		PlayerChanged(playerID)
 	end
 end
-
