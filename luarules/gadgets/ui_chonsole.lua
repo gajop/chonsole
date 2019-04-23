@@ -6,8 +6,7 @@ function gadget:GetInfo()
 		name 	= "Chonsole gadget",
 		desc	= "Gadget support for Chonsole",
 		author	= "gajop",
-		date	= "In the future 2015",
-		license	= "GNU GPL, v2 or later",
+		license	= "MIT",
 		layer	= 0,
 		enabled = true
 	}
@@ -40,8 +39,8 @@ function LoadExtensions()
 end
 
 local function explode(div,str)
-	if (div=='') then return 
-		false 
+	if (div=='') then return
+		false
 	end
 	local pos,arr = 0,{}
 	-- for each divider found
@@ -57,7 +56,7 @@ end
 if Game.gameName:find("Zero-K") or Game.gameName:find("Scened ZK") then
 	-- FIXME: override Spring.Echo only for this widget
 	local oldEcho = Spring.Echo
-	Spring.Echo = function(...) 
+	Spring.Echo = function(...)
 		x = {...}
 		for i = 1, #x do
 			x[i] = "game_message:" .. tostring(x[i])
@@ -68,7 +67,7 @@ end
 
 -- SYNCED
 if gadgetHandler:IsSyncedCode() then
-	
+
 -- this is used to identify the current command used in Unsync
 local currentCmd = ""
 function Unsync(...)
@@ -120,7 +119,7 @@ end
 
 -- UNSYNCED
 else
-	
+
 local function ExecuteInUnsynced(_, data)
     local msg_table = explode('|', data)
 	local cmd = cmdConfig[msg_table[1]]
@@ -140,7 +139,7 @@ local function ExecuteInUnsynced(_, data)
 		Spring.Log("Chonsole", LOG.ERROR, "Error executing custom command in synced: " .. tostring(cmd.command))
 		Spring.Log("Chonsole", LOG.ERROR, err)
 	end
-end	
+end
 
 function gadget:Initialize()
 	LoadExtensions()

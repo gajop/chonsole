@@ -5,7 +5,7 @@ end
 
 -- disable in case there's no liblobby installed
 if not WG.LibLobby or not WG.LibLobby.lobby then
-	Spring.Log("Chonsole", LOG.WARNING, i18n("liblobby_not_installed", {default = "liblobby is not installed. Lobby support disabled."}))
+	Spring.Log("Chonsole", LOG.NOTICE, i18n("liblobby_not_installed", {default = "liblobby is not installed. Lobby support disabled."}))
 	return
 end
 Spring.Log("Chonsole", LOG.NOTICE, i18n("liblobby_is_installed", {default = "liblobby is installed. Lobby support enabled."}))
@@ -49,7 +49,7 @@ lobby:AddListener("OnLeft",
 		end
 	end
 )
-lobby:AddListener("OnSaid", 
+lobby:AddListener("OnSaid",
 	function(listener, chanName, userName, message)
 		for id, name in pairs(consoles) do
 			if name == chanName then
@@ -82,7 +82,7 @@ lobby:AddListener("OnDisconnected",
 		if lobby:GetConnectionStatus() == "disconnected" then
 			-- FIXME: make this variable part of the API
 			local delay = lobby.reconnectionDelay
-			Spring.Echo("\255" .. channelColor .. i18n("announce_reconnect", {default="Attempting reconnect in %{delay} seconds.", delay=delay}) .. "\b")	
+			Spring.Echo("\255" .. channelColor .. i18n("announce_reconnect", {default="Attempting reconnect in %{delay} seconds.", delay=delay}) .. "\b")
 		end
 	end
 )
